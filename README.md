@@ -1,70 +1,96 @@
-# Navilife
+<p align="center">
+  <img src="app/public/navilife-icon.png" alt="Navilife" width="80" />
+</p>
 
-A focused, no-fluff productivity app built for people who want to plan their week, track their time, and actually see if they're improving — without spending an hour learning the tool.
+<h1 align="center">Navilife</h1>
 
-## Why this exists
+<p align="center">
+  Navigate your lifestyle — take control of your <strong>Time</strong>, <strong>Money</strong>, and <strong>Knowledge</strong>.
+</p>
 
-Most productivity apps are too general. They try to do everything, so you spend more time configuring them than being productive. This app does one thing: helps you plan your week, track what actually happened, and shows you the data clearly.
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white" alt="React 19" />
+  <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white" alt="Supabase" />
+  <img src="https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/Deploy-Vercel-000?logo=vercel&logoColor=white" alt="Vercel" />
+</p>
 
-## Features
+<p align="center">
+  <a href="https://productivity-manager-gules.vercel.app/login"><strong>Live Demo</strong></a>
+</p>
 
-- **Weekly Planner** — Plan tasks across a 7-column week grid. Drag into time slots, color-code by category.
-- **Dashboard** — The home screen. All your key graphs at a glance, not buried in menus.
-- **Analytics**
-  - Completion rate (planned vs done per day)
-  - Time distribution by category (where your time actually goes)
-  - Streak calendar (days you hit your goals)
-  - Weekly trend (are you improving over 8 weeks?)
-  - Energy map (which hours you're most productive)
-- **Google Sign-in** — One click to get in, no separate account to manage.
+---
 
-## Stack
+## About
+
+Navilife helps people navigate three pillars of life: **Time**, **Money**, and **Knowledge**. Starting with time management — plan your week, track what actually happens, and see if you're improving.
+
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend | React (Vite) |
-| Backend / Database | Supabase (PostgreSQL + Auth + API) |
-| Charts | Recharts |
+| Frontend | React 19, React Router 7 |
+| Backend | Supabase (PostgreSQL + Auth + RLS) |
+| Charts | Recharts 3 |
+| Build | Vite 7 |
 | Deploy | Vercel |
 
-See [docs/service-decision.md](docs/service-decision.md) for why these were chosen.
+## Features
 
-## Getting started
+- **Drag-and-drop weekly planner** — 7-day grid with 15-min slots, resize task duration by dragging edges
+- **Daily checklist** — today's tasks + overdue carry-forward, tri-state status cycling (To Do → In Progress → Done)
+- **6 analytics charts** — completion rate, weekly trend, time distribution, streak calendar, energy map, task timeline
+- **Status audit log** — every status change is timestamped, enabling planned-vs-actual time analysis
+- **Inline task notes** — click any task to open a note editor panel
+- **Google OAuth + Row-Level Security** — each user only sees their own data
 
-### 1. Clone the repo
+## Project Structure
+
+```
+navilife/
+├── app/src/
+│   ├── pages/          # Login, Dashboard, Week, Daily
+│   ├── components/     # Nav, Drawer, WeekGrid
+│   ├── lib/            # Supabase client, status helpers
+│   └── theme.js        # Centralized design tokens
+├── supabase/migrations/ # PostgreSQL schema + RLS policies
+├── docs/                # Tech decisions, migration guide
+└── vercel.json
+```
+
+## Getting Started
 
 ```bash
 git clone <repo-url>
-cd productivity-manager/app
+cd navilife/app
 npm install
 ```
 
-### 2. Set up environment variables
-
-Create a `.env` file inside `app/`:
+Create `app/.env`:
 
 ```env
 VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your_supabase_publishable_key
+VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY=your_supabase_anon_key
 ```
 
-Get these from your Supabase project → **Settings → API**.
-
-### 3. Apply the database migration
-
-See [docs/applying-migrations.md](docs/applying-migrations.md) for instructions.
-
-### 4. Run locally
+Set up the database and run:
 
 ```bash
+supabase login
+supabase link --project-ref <your-project-ref>
+supabase db push
 npm run dev
 ```
 
 ## Roadmap
 
-- [x] Project setup & planning
-- [x] Supabase schema (tasks, time logs, categories)
-- [x] Google authentication
-- [x] Weekly planner view (7-day grid, 15-min slots, toggle done)
-- [x] Dashboard with charts (completion rate, trend, time distribution, streak, energy map)
-- [x] Deploy to Vercel
+- [x] Weekly planner with drag-and-drop
+- [x] Dashboard with 6 analytics charts
+- [x] Daily task view with status tracking
+- [x] Status checkpoint logging
+- [ ] Money tracking module
+- [ ] Knowledge tracking module
+
+## License
+
+MIT
