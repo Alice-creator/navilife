@@ -58,9 +58,9 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
       }
     }
     return {
-      bg: '#1a2540',
-      border: '#5580cc',
-      text: '#7aaeff',
+      bg: T.taskBg,
+      border: T.taskBorder,
+      text: T.taskText,
     }
   }
 
@@ -382,7 +382,7 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
           overflow: 'hidden',
           pointerEvents: 'none',
           zIndex: 1000,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          boxShadow: T.shadow,
           opacity: 0.9,
         }}>
           {drag.task.title}

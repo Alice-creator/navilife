@@ -45,7 +45,7 @@ export default function Nav({ user }) {
           <div style={{
             position: 'absolute', top: 44, right: 0, width: 220,
             background: T.surface, borderRadius: 8, border: `1px solid ${T.borderStrong}`,
-            boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+            boxShadow: T.shadowHeavy,
             overflow: 'hidden', zIndex: 300, fontFamily: 'system-ui, sans-serif',
           }}>
             <div style={{ padding: '14px 16px', borderBottom: `1px solid ${T.border}` }}>

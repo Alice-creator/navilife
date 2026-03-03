@@ -9,6 +9,25 @@ import { T } from '../theme'
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const UNIT_DEFAULTS = { week: 8, month: 6, year: 3 }
 
+// ─── Shared chart styles ─────────────────────────────────────────────────────
+
+const tickStyle = { fontSize: 12, fill: T.textSub }
+const axisLine = { stroke: T.border }
+const gridStroke = T.borderStrong
+const tooltipStyle = { background: T.surface, border: `1px solid ${T.borderStrong}`, borderRadius: 6, color: T.text, fontSize: 12 }
+const legendStyle = { fontSize: 12, color: T.textSub }
+
+const FALLBACK_CATEGORY = { id: '__all', name: 'All', color: T.accent }
+function catsOrFallback(categories) {
+  return categories.length > 0 ? categories : [FALLBACK_CATEGORY]
+}
+
+function dur(t) {
+  const [sh, sm] = t.start_time.split(':').map(Number)
+  const [eh, em] = t.end_time.split(':').map(Number)
+  return Math.max(0, (eh * 60 + em) - (sh * 60 + sm)) / 60
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getMondayOfWeek(date) {
@@ -245,7 +264,7 @@ export default function Dashboard() {
       {/* Global filter bar */}
       <div style={{ padding: '12px 24px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8, background: T.bg, position: 'sticky', top: 0, zIndex: 10 }}>
         {['week', 'month', 'year'].map(u => (
-          <button key={u} onClick={() => switchUnit(u)} style={{ padding: '5px 14px', borderRadius: 5, border: `1px solid ${unit === u ? T.accent : T.border}`, background: unit === u ? 'rgba(107,138,255,0.15)' : 'transparent', color: unit === u ? T.accent : T.textSub, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+          <button key={u} onClick={() => switchUnit(u)} style={{ padding: '5px 14px', borderRadius: 5, border: `1px solid ${unit === u ? T.accent : T.border}`, background: unit === u ? T.accentSoft : 'transparent', color: unit === u ? T.accent : T.textSub, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
             {unitLabels[u]}
           </button>
         ))}
@@ -267,7 +286,7 @@ export default function Dashboard() {
             <div ref={catDropdownRef} style={{ position: 'relative' }}>
               <button
                 onClick={() => setCatDropdownOpen(o => !o)}
-                style={{ padding: '5px 14px', borderRadius: 5, border: `1px solid ${selectedCatIds ? T.accent : T.border}`, background: selectedCatIds ? 'rgba(107,138,255,0.15)' : 'transparent', color: selectedCatIds ? T.accent : T.textSub, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+                style={{ padding: '5px 14px', borderRadius: 5, border: `1px solid ${selectedCatIds ? T.accent : T.border}`, background: selectedCatIds ? T.accentSoft : 'transparent', color: selectedCatIds ? T.accent : T.textSub, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
               >
                 {selectedCatIds ? `${selectedCatIds.length} categor${selectedCatIds.length === 1 ? 'y' : 'ies'}` : 'All categories'}
               </button>
@@ -308,13 +327,13 @@ export default function Dashboard() {
             <StatBadge label="Total tasks" value={totalTasks} color={T.text} />
           </Card>
           <Card style={{ flex: 1, padding: '16px 20px' }}>
-            <StatBadge label="Completed" value={doneTasks} color="#34D399" />
+            <StatBadge label="Completed" value={doneTasks} color={T.success} />
           </Card>
           <Card style={{ flex: 1, padding: '16px 20px' }}>
-            <StatBadge label="Overall rate" value={`${overallRate}%`} color="#6B8AFF" />
+            <StatBadge label="Overall rate" value={`${overallRate}%`} color={T.accent} />
           </Card>
           <Card style={{ flex: 1, padding: '16px 20px' }}>
-            <StatBadge label="This week" value={`${thisWeekDone}/${thisWeekTotal}`} color="#A78BFA" />
+            <StatBadge label="This week" value={`${thisWeekDone}/${thisWeekTotal}`} color={T.purple} />
           </Card>
         </div>
 
@@ -367,12 +386,12 @@ function CompletionByDayChart({ tasks, n, unit }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-        <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}%`} contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
+        <XAxis dataKey="day" tick={{ ...tickStyle, fontSize: 13 }} axisLine={axisLine} tickLine={false} />
+        <YAxis tick={tickStyle} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
+        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}%`} contentStyle={tooltipStyle} />
         <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
           {data.map((entry, i) => (
-            <Cell key={i} fill={entry.rate >= 80 ? '#34D399' : entry.rate >= 50 ? '#6B8AFF' : entry.rate > 0 ? '#F59E0B' : '#1E2230'} />
+            <Cell key={i} fill={entry.rate >= 80 ? T.success : entry.rate >= 50 ? T.accent : entry.rate > 0 ? T.warning : T.border} />
           ))}
         </Bar>
       </BarChart>
@@ -383,7 +402,7 @@ function CompletionByDayChart({ tasks, n, unit }) {
 function TrendChart({ tasks, categories, taskCatMap, n, unit }) {
   const { data, catKeys } = useMemo(() => {
     const buckets = buildTimeBuckets(n, unit)
-    const cats = categories.length > 0 ? categories : [{ id: '__all', name: 'All', color: '#6B8AFF' }]
+    const cats = catsOrFallback(categories)
     const rows = buckets.map(({ label, match }) => {
       const wt = tasks.filter(t => match(t))
       const row = { label }
@@ -406,11 +425,11 @@ function TrendChart({ tasks, categories, taskCatMap, n, unit }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#2A2F40" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
-        <Tooltip formatter={(v) => `${v}%`} contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#7B819A' }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+        <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
+        <YAxis tick={tickStyle} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
+        <Tooltip formatter={(v) => `${v}%`} contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={legendStyle} />
         {catKeys.map(c => (
           <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={{ r: 3, fill: c.color }} activeDot={{ r: 5 }} />
         ))}
@@ -422,12 +441,7 @@ function TrendChart({ tasks, categories, taskCatMap, n, unit }) {
 function TimeDistChart({ tasks, categories, taskCatMap, n, unit }) {
   const { data, catKeys } = useMemo(() => {
     const filtered = filterLastN(tasks, n, unit).filter(t => t.start_time && t.end_time)
-    const cats = categories.length > 0 ? categories : [{ id: '__all', name: 'All', color: '#8b5cf6' }]
-    function dur(t) {
-      const [sh, sm] = t.start_time.split(':').map(Number)
-      const [eh, em] = t.end_time.split(':').map(Number)
-      return Math.max(0, (eh * 60 + em) - (sh * 60 + sm)) / 60
-    }
+    const cats = catsOrFallback(categories)
     const rows = DAYS.map((day, i) => {
       const dayTasks = filtered.filter(t => {
         const dow = new Date(t.date + 'T00:00:00').getDay()
@@ -446,10 +460,10 @@ function TimeDistChart({ tasks, categories, taskCatMap, n, unit }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-        <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} unit="h" axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}h`} contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#7B819A' }} />
+        <XAxis dataKey="day" tick={{ ...tickStyle, fontSize: 13 }} axisLine={axisLine} tickLine={false} />
+        <YAxis tick={tickStyle} unit="h" axisLine={false} tickLine={false} />
+        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}h`} contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={legendStyle} />
         {catKeys.map((c, i) => (
           <Bar key={c.name} dataKey={c.name} stackId="a" fill={c.color} radius={i === catKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
         ))}
@@ -481,7 +495,7 @@ function StreakCalendar({ tasks, n, unit }) {
                   style={{ flex: 1, height: cellH, borderRadius: 3, background: T.bg, border: future ? '1px solid transparent' : `1px solid ${T.borderStrong}`, position: 'relative', overflow: 'hidden' }}
                 >
                   {!future && total > 0 && (
-                    <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${ratio * 100}%`, background: '#2EFF46', borderRadius: 3 }} />
+                    <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${ratio * 100}%`, background: T.streak, borderRadius: 3 }} />
                   )}
                 </div>
               )
@@ -491,7 +505,7 @@ function StreakCalendar({ tasks, n, unit }) {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 11, color: T.textSub }}>
         <div style={{ width: 12, height: 12, borderRadius: 2, background: T.bg, border: `1px solid ${T.borderStrong}` }} /> No tasks
-        <div style={{ width: 12, height: 12, borderRadius: 2, background: '#2EFF46' }} /> Done
+        <div style={{ width: 12, height: 12, borderRadius: 2, background: T.streak }} /> Done
       </div>
     </div>
   )
@@ -508,13 +522,13 @@ function CompletionTimelineChart({ tasks, n, unit }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#2A2F40" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} axisLine={false} tickLine={false} allowDecimals={false} />
-        <Tooltip contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#7B819A' }} />
-        <Line type="monotone" dataKey="total" name="Scheduled" stroke="#6B8AFF" strokeWidth={2} dot={{ r: 3, fill: '#6B8AFF' }} />
-        <Line type="monotone" dataKey="done" name="Completed" stroke="#34D399" strokeWidth={2} dot={{ r: 3, fill: '#34D399' }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+        <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
+        <YAxis tick={tickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={legendStyle} />
+        <Line type="monotone" dataKey="total" name="Scheduled" stroke={T.accent} strokeWidth={2} dot={{ r: 3, fill: T.accent }} />
+        <Line type="monotone" dataKey="done" name="Completed" stroke={T.success} strokeWidth={2} dot={{ r: 3, fill: T.success }} />
       </LineChart>
     </ResponsiveContainer>
   )
@@ -532,7 +546,7 @@ function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit }) {
   const { data, catKeys } = useMemo(() => {
     const filtered = filterLastN(pendingTasks, n, unit).filter(t => !t.done && t.date)
     const today = new Date(); today.setHours(0, 0, 0, 0)
-    const cats = categories.length > 0 ? categories : [{ id: '__all', name: 'All', color: '#6B8AFF' }]
+    const cats = catsOrFallback(categories)
     const rows = AGING_BUCKETS.map(({ label, min, max }) => {
       const bucketTasks = filtered.filter(t => {
         const diff = Math.floor((today - new Date(t.date + 'T00:00:00')) / 86400000)
@@ -551,11 +565,11 @@ function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#2A2F40" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} axisLine={false} tickLine={false} allowDecimals={false} />
-        <Tooltip contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#7B819A' }} />
+        <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+        <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
+        <YAxis tick={tickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip contentStyle={tooltipStyle} />
+        <Legend wrapperStyle={legendStyle} />
         {catKeys.map(c => (
           <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={{ r: 3, fill: c.color }} />
         ))}

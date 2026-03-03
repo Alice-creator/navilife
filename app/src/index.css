@@ -8,8 +8,8 @@ html, body, #root {
   height: 100%;
   width: 100%;
   font-family: system-ui, sans-serif;
-  background-color: #0B0D13;
-  color: #E2E4EA;
+  background-color: #0B0D13; /* must match T.bg in theme.js */
+  color: #E2E4EA; /* must match T.text in theme.js */
   color-scheme: dark;
 }
 

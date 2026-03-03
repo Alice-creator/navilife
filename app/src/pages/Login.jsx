@@ -14,24 +14,24 @@ export default function Login() {
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       {/* Left — form */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px 48px', backgroundImage: `url(${logo})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)' }} />
+        <div style={{ position: 'absolute', inset: 0, background: T.overlay }} />
 
         {/* Content above overlay */}
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 'auto' }}>
             <img src={logo} alt="logo" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} />
-            <span style={{ fontWeight: 700, fontSize: 16, color: 'white' }}>Productivity Manager</span>
+            <span style={{ fontWeight: 700, fontSize: 16, color: T.buttonText }}>Productivity Manager</span>
           </div>
 
           {/* Form content */}
           <div style={{ maxWidth: 360, width: '100%', margin: '0 auto', display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700, color: 'white', margin: '0 0 8px' }}>Welcome Back!</h1>
-            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', margin: '0 0 32px' }}>Sign in to access your dashboard and start planning your week.</p>
+            <h1 style={{ fontSize: 28, fontWeight: 700, color: T.buttonText, margin: '0 0 8px' }}>Welcome Back!</h1>
+            <p style={{ fontSize: 14, color: T.textSub, margin: '0 0 32px' }}>Sign in to access your dashboard and start planning your week.</p>
 
             <button
               onClick={handleGoogleLogin}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, width: '100%', padding: '12px 20px', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, background: 'rgba(255,255,255,0.95)', fontSize: 15, fontWeight: 500, cursor: 'pointer', color: '#374151', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', marginBottom: 16 }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, width: '100%', padding: '12px 20px', border: `1px solid ${T.borderStrong}`, borderRadius: 8, background: 'rgba(255,255,255,0.95)', fontSize: 15, fontWeight: 500, cursor: 'pointer', color: T.textOnLight, boxShadow: T.shadow, marginBottom: 16 }}
             >
               <svg width="20" height="20" viewBox="0 0 48 48">
                 <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
