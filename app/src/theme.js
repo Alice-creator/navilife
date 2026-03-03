@@ -1,16 +1,16 @@
 // Central theme — change colors here to retheme the whole app
 export const T = {
-  bg:           '#0a0a0a',  // page background
-  surface:      '#111111',  // cards, panels, dropdowns
-  elevated:     '#1a1a1a',  // inputs, hover states, raised elements
-  border:       '#2a2a2a',  // subtle borders
-  borderStrong: '#ffffff',  // visible borders
-  text:         '#f0f0f0',  // primary text
-  textSub:      '#888888',  // secondary text
-  textDim:      '#555555',  // muted labels
-  textFaint:    '#3a3a3a',  // very dim (icons, hour labels)
-  accent:       '#6b9fff',  // blue accent
-  success:      '#10b981',  // green
-  danger:       '#f87171',  // red text
-  dangerBorder: '#3f1515',  // red border bg
+  bg:           '#0B0D13',  // page background — deep navy
+  surface:      '#131620',  // cards, panels, dropdowns
+  elevated:     '#1A1E2B',  // inputs, hover states, raised elements
+  border:       '#1E2230',  // subtle borders
+  borderStrong: '#2A2F40',  // visible borders (card edges)
+  text:         '#E2E4EA',  // primary text
+  textSub:      '#7B819A',  // secondary text
+  textDim:      '#4A4F63',  // muted labels
+  textFaint:    '#2E3244',  // very dim (icons, hour labels)
+  accent:       '#6B8AFF',  // blue accent
+  success:      '#34D399',  // green
+  danger:       '#F87171',  // red text
+  dangerBorder: '#2D1520',  // red border bg
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import supabase from '../lib/supabase'
 import { T } from '../theme'
 
-const PRESET_COLORS = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#8b5cf6', '#14b8a6']
+const PRESET_COLORS = ['#7C8AFF', '#5BA4F5', '#34D399', '#FBBF4E', '#F87171', '#F472B6', '#A78BFA', '#2DD4BF']
 const PANEL_WIDTH = 280
 const BAR_WIDTH = 44
 
@@ -266,7 +266,7 @@ function TaskTab({ isEditing, isDone, title, setTitle, date, setDate, startTime,
     <form onSubmit={onSave}>
       {isEditing && (
         <div style={{ marginBottom: 12 }}>
-          <button type="button" onClick={onToggleDone} style={{ width: '100%', padding: '7px 10px', border: `1px solid ${isDone ? '#064e3b' : T.borderStrong}`, borderRadius: 5, background: isDone ? '#052e16' : T.elevated, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: isDone ? '#6ee7b7' : T.textSub }}>
+          <button type="button" onClick={onToggleDone} style={{ width: '100%', padding: '7px 10px', border: `1px solid ${isDone ? 'rgba(52,211,153,0.25)' : T.borderStrong}`, borderRadius: 5, background: isDone ? 'rgba(52,211,153,0.1)' : T.elevated, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: isDone ? T.success : T.textSub }}>
             {isDone ? 'Done — mark undone' : 'Mark as done'}
           </button>
         </div>
@@ -332,5 +332,5 @@ const inputStyle = {
 
 const primaryBtnStyle = {
   width: '100%', padding: '8px 14px', border: 'none', borderRadius: 5,
-  background: T.text, color: T.bg, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+  background: T.accent, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer',
 }

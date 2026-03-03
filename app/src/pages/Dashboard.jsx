@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   LineChart, Line, CartesianGrid, Legend,
@@ -110,24 +110,6 @@ function buildStreakData(tasks, numWeeks) {
   return rows
 }
 
-function buildAgingData(tasks) {
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const buckets = [
-    { label: 'Today', min: 0, max: 0, count: 0 },
-    { label: '1–3 days', min: 1, max: 3, count: 0 },
-    { label: '4–7 days', min: 4, max: 7, count: 0 },
-    { label: '1–2 weeks', min: 8, max: 14, count: 0 },
-    { label: '2+ weeks', min: 15, max: Infinity, count: 0 },
-  ]
-  tasks.filter(t => !t.done && t.date).forEach(t => {
-    const diff = Math.floor((today - new Date(t.date + 'T00:00:00')) / 86400000)
-    if (diff < 0) return
-    const b = buckets.find(b => diff >= b.min && diff <= b.max)
-    if (b) b.count++
-  })
-  return buckets
-}
-
 // ─── Shared UI ────────────────────────────────────────────────────────────────
 
 function Card({ title, children, style }) {
@@ -157,17 +139,43 @@ function Empty() {
 export default function Dashboard() {
   const [tasks, setTasks] = useState([])
   const [pendingTasks, setPendingTasks] = useState([])
+  const [categories, setCategories] = useState([])
+  const [taskCatMap, setTaskCatMap] = useState({})
   const [loading, setLoading] = useState(true)
 
   const [unit, setUnit] = useState('week')
   const [n, setN] = useState(8)
   const [nInput, setNInput] = useState('8')
+  const [selectedCatIds, setSelectedCatIds] = useState(null) // null = all
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false)
+  const catDropdownRef = useRef(null)
 
   function switchUnit(u) {
     const def = UNIT_DEFAULTS[u]
     setUnit(u)
     setN(def)
     setNInput(String(def))
+  }
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (catDropdownRef.current && !catDropdownRef.current.contains(e.target)) setCatDropdownOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const filteredCategories = useMemo(() => {
+    if (!selectedCatIds) return categories
+    return categories.filter(c => selectedCatIds.includes(c.id))
+  }, [categories, selectedCatIds])
+
+  function toggleCat(id) {
+    setSelectedCatIds(prev => {
+      if (!prev) return categories.filter(c => c.id !== id).map(c => c.id)
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      return next.length === categories.length ? null : next
+    })
   }
 
   function commitN() {
@@ -189,6 +197,20 @@ export default function Dashboard() {
       if (data) setTasks(data)
       const { data: pending } = await supabase.from('tasks').select('id, date, done').eq('done', false)
       if (pending) setPendingTasks(pending)
+      const allIds = [...new Set([...(data || []).map(t => t.id), ...(pending || []).map(t => t.id)])]
+      if (allIds.length > 0) {
+        const { data: tcData } = await supabase.from('task_categories').select('*').in('task_id', allIds)
+        if (tcData) {
+          const map = {}
+          tcData.forEach(tc => {
+            if (!map[tc.task_id]) map[tc.task_id] = []
+            map[tc.task_id].push(tc.category_id)
+          })
+          setTaskCatMap(map)
+        }
+      }
+      const { data: cats } = await supabase.from('categories').select('*').order('created_at')
+      if (cats) setCategories(cats)
       setLoading(false)
     }
     load()
@@ -223,7 +245,7 @@ export default function Dashboard() {
       {/* Global filter bar */}
       <div style={{ padding: '12px 24px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8, background: T.bg, position: 'sticky', top: 0, zIndex: 10 }}>
         {['week', 'month', 'year'].map(u => (
-          <button key={u} onClick={() => switchUnit(u)} style={{ padding: '5px 14px', borderRadius: 5, border: `1px solid ${unit === u ? T.accent : T.border}`, background: unit === u ? 'rgba(107,159,255,0.15)' : 'transparent', color: unit === u ? T.accent : T.textSub, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+          <button key={u} onClick={() => switchUnit(u)} style={{ padding: '5px 14px', borderRadius: 5, border: `1px solid ${unit === u ? T.accent : T.border}`, background: unit === u ? 'rgba(107,138,255,0.15)' : 'transparent', color: unit === u ? T.accent : T.textSub, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
             {unitLabels[u]}
           </button>
         ))}
@@ -239,6 +261,43 @@ export default function Dashboard() {
           style={{ width: 42, padding: '3px 6px', background: T.elevated, border: `1px solid ${T.borderStrong}`, borderRadius: 4, color: T.text, fontSize: 12, textAlign: 'center', outline: 'none' }}
         />
         <span style={{ fontSize: 12, color: T.textSub }}>{filterLabel}</span>
+        {categories.length > 0 && (
+          <>
+            <span style={{ color: T.borderStrong, margin: '0 4px', fontSize: 16 }}>·</span>
+            <div ref={catDropdownRef} style={{ position: 'relative' }}>
+              <button
+                onClick={() => setCatDropdownOpen(o => !o)}
+                style={{ padding: '5px 14px', borderRadius: 5, border: `1px solid ${selectedCatIds ? T.accent : T.border}`, background: selectedCatIds ? 'rgba(107,138,255,0.15)' : 'transparent', color: selectedCatIds ? T.accent : T.textSub, fontSize: 13, fontWeight: 500, cursor: 'pointer' }}
+              >
+                {selectedCatIds ? `${selectedCatIds.length} categor${selectedCatIds.length === 1 ? 'y' : 'ies'}` : 'All categories'}
+              </button>
+              {catDropdownOpen && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 6, background: T.surface, border: `1px solid ${T.borderStrong}`, borderRadius: 8, padding: '8px 0', minWidth: 200, maxHeight: 300, overflowY: 'auto', zIndex: 20 }}>
+                  <button
+                    onClick={() => setSelectedCatIds(null)}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 14px', background: 'transparent', border: 'none', color: !selectedCatIds ? T.accent : T.textSub, fontSize: 12, cursor: 'pointer', fontWeight: !selectedCatIds ? 600 : 400 }}
+                  >
+                    Select all
+                  </button>
+                  <div style={{ height: 1, background: T.border, margin: '4px 0' }} />
+                  {categories.map(cat => {
+                    const checked = !selectedCatIds || selectedCatIds.includes(cat.id)
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => toggleCat(cat.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 14px', background: 'transparent', border: 'none', color: checked ? T.text : T.textDim, fontSize: 12, cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <div style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${checked ? cat.color : T.textDim}`, background: checked ? cat.color : 'transparent', flexShrink: 0 }} />
+                        {cat.name}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -249,13 +308,13 @@ export default function Dashboard() {
             <StatBadge label="Total tasks" value={totalTasks} color={T.text} />
           </Card>
           <Card style={{ flex: 1, padding: '16px 20px' }}>
-            <StatBadge label="Completed" value={doneTasks} color="#10b981" />
+            <StatBadge label="Completed" value={doneTasks} color="#34D399" />
           </Card>
           <Card style={{ flex: 1, padding: '16px 20px' }}>
-            <StatBadge label="Overall rate" value={`${overallRate}%`} color="#3b82f6" />
+            <StatBadge label="Overall rate" value={`${overallRate}%`} color="#6B8AFF" />
           </Card>
           <Card style={{ flex: 1, padding: '16px 20px' }}>
-            <StatBadge label="This week" value={`${thisWeekDone}/${thisWeekTotal}`} color="#8b5cf6" />
+            <StatBadge label="This week" value={`${thisWeekDone}/${thisWeekTotal}`} color="#A78BFA" />
           </Card>
         </div>
 
@@ -264,20 +323,16 @@ export default function Dashboard() {
             <CompletionByDayChart tasks={tasks} n={n} unit={unit} />
           </Card>
           <Card title="Completion trend">
-            <TrendChart tasks={tasks} n={n} unit={unit} />
+            <TrendChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} />
           </Card>
         </div>
 
         <Card title="Scheduled hours by day of week">
-          <TimeDistChart tasks={tasks} n={n} unit={unit} />
+          <TimeDistChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} />
         </Card>
 
         <Card title="Activity streak">
           <StreakCalendar tasks={tasks} n={n} unit={unit} />
-        </Card>
-
-        <Card title="Planned vs completed time">
-          <PlannedVsActualChart tasks={tasks} n={n} unit={unit} />
         </Card>
 
         <Card title="Task completion over time">
@@ -285,7 +340,7 @@ export default function Dashboard() {
         </Card>
 
         <Card title="Pending task aging">
-          <TaskAgingChart pendingTasks={pendingTasks} n={n} unit={unit} />
+          <TaskAgingChart pendingTasks={pendingTasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} />
         </Card>
 
       </div>
@@ -312,12 +367,12 @@ function CompletionByDayChart({ tasks, n, unit }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-        <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#aaa' }} axisLine={{ stroke: '#1e1e1e' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#aaa' }} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}%`} contentStyle={{ background: '#111', border: '1px solid #252525', borderRadius: 6, color: '#f0f0f0', fontSize: 12 }} />
+        <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
+        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
+        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}%`} contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
         <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
           {data.map((entry, i) => (
-            <Cell key={i} fill={entry.rate >= 80 ? '#10b981' : entry.rate >= 50 ? '#3b82f6' : entry.rate > 0 ? '#f59e0b' : '#1e1e1e'} />
+            <Cell key={i} fill={entry.rate >= 80 ? '#34D399' : entry.rate >= 50 ? '#6B8AFF' : entry.rate > 0 ? '#F59E0B' : '#1E2230'} />
           ))}
         </Bar>
       </BarChart>
@@ -325,53 +380,79 @@ function CompletionByDayChart({ tasks, n, unit }) {
   )
 }
 
-function TrendChart({ tasks, n, unit }) {
-  const data = useMemo(() => {
-    return buildTimeBuckets(n, unit).map(({ label, match }) => {
+function TrendChart({ tasks, categories, taskCatMap, n, unit }) {
+  const { data, catKeys } = useMemo(() => {
+    const buckets = buildTimeBuckets(n, unit)
+    const cats = categories.length > 0 ? categories : [{ id: '__all', name: 'All', color: '#6B8AFF' }]
+    const rows = buckets.map(({ label, match }) => {
       const wt = tasks.filter(t => match(t))
-      const done = wt.filter(t => t.done).length
-      const total = wt.length
-      return { label, rate: total > 0 ? Math.round((done / total) * 100) : 0, total }
+      const row = { label }
+      cats.forEach(cat => {
+        let catTasks, catDone
+        if (cat.id === '__all') {
+          catTasks = wt
+          catDone = wt.filter(t => t.done)
+        } else {
+          catTasks = wt.filter(t => taskCatMap[t.id]?.includes(cat.id))
+          catDone = catTasks.filter(t => t.done)
+        }
+        row[cat.name] = catTasks.length > 0 ? Math.round((catDone.length / catTasks.length) * 100) : 0
+      })
+      return row
     })
-  }, [tasks, n, unit])
-  if (data.every(d => d.total === 0)) return <Empty />
+    return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
+  }, [tasks, categories, taskCatMap, n, unit])
+  if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
   return (
     <ResponsiveContainer width="100%" height={200}>
       <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#aaa' }} axisLine={{ stroke: '#1e1e1e' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#aaa' }} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
-        <Tooltip formatter={(v) => `${v}%`} contentStyle={{ background: '#111', border: '1px solid #252525', borderRadius: 6, color: '#f0f0f0', fontSize: 12 }} />
-        <Line type="monotone" dataKey="rate" stroke="#6b9fff" strokeWidth={2} dot={{ r: 3, fill: '#6b9fff' }} activeDot={{ r: 5 }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#2A2F40" />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
+        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
+        <Tooltip formatter={(v) => `${v}%`} contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: '#7B819A' }} />
+        {catKeys.map(c => (
+          <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={{ r: 3, fill: c.color }} activeDot={{ r: 5 }} />
+        ))}
       </LineChart>
     </ResponsiveContainer>
   )
 }
 
-function TimeDistChart({ tasks, n, unit }) {
-  const data = useMemo(() => {
+function TimeDistChart({ tasks, categories, taskCatMap, n, unit }) {
+  const { data, catKeys } = useMemo(() => {
     const filtered = filterLastN(tasks, n, unit).filter(t => t.start_time && t.end_time)
-    return DAYS.map((day, i) => {
+    const cats = categories.length > 0 ? categories : [{ id: '__all', name: 'All', color: '#8b5cf6' }]
+    function dur(t) {
+      const [sh, sm] = t.start_time.split(':').map(Number)
+      const [eh, em] = t.end_time.split(':').map(Number)
+      return Math.max(0, (eh * 60 + em) - (sh * 60 + sm)) / 60
+    }
+    const rows = DAYS.map((day, i) => {
       const dayTasks = filtered.filter(t => {
         const dow = new Date(t.date + 'T00:00:00').getDay()
         return (dow === 0 ? 6 : dow - 1) === i
       })
-      const totalMins = dayTasks.reduce((acc, t) => {
-        const [sh, sm] = t.start_time.split(':').map(Number)
-        const [eh, em] = t.end_time.split(':').map(Number)
-        return acc + Math.max(0, (eh * 60 + em) - (sh * 60 + sm))
-      }, 0)
-      return { day, hours: parseFloat((totalMins / 60).toFixed(1)) }
+      const row = { day }
+      cats.forEach(cat => {
+        const ct = cat.id === '__all' ? dayTasks : dayTasks.filter(t => taskCatMap[t.id]?.includes(cat.id))
+        row[cat.name] = parseFloat(ct.reduce((a, t) => a + dur(t), 0).toFixed(1))
+      })
+      return row
     })
-  }, [tasks, n, unit])
-  if (data.every(d => d.hours === 0)) return <Empty />
+    return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
+  }, [tasks, categories, taskCatMap, n, unit])
+  if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-        <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#aaa' }} axisLine={{ stroke: '#1e1e1e' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#aaa' }} unit="h" axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}h`} contentStyle={{ background: '#111', border: '1px solid #252525', borderRadius: 6, color: '#f0f0f0', fontSize: 12 }} />
-        <Bar dataKey="hours" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+        <XAxis dataKey="day" tick={{ fontSize: 13, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
+        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} unit="h" axisLine={false} tickLine={false} />
+        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}h`} contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: '#7B819A' }} />
+        {catKeys.map((c, i) => (
+          <Bar key={c.name} dataKey={c.name} stackId="a" fill={c.color} radius={i === catKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+        ))}
       </BarChart>
     </ResponsiveContainer>
   )
@@ -416,38 +497,6 @@ function StreakCalendar({ tasks, n, unit }) {
   )
 }
 
-function PlannedVsActualChart({ tasks, n, unit }) {
-  const data = useMemo(() => {
-    function dur(t) {
-      const [sh, sm] = t.start_time.split(':').map(Number)
-      const [eh, em] = t.end_time.split(':').map(Number)
-      return Math.max(0, (eh * 60 + em) - (sh * 60 + sm)) / 60
-    }
-    return buildTimeBuckets(n, unit).map(({ label, match }) => {
-      const wt = tasks.filter(t => match(t) && t.start_time && t.end_time)
-      return {
-        label,
-        planned: parseFloat(wt.reduce((a, t) => a + dur(t), 0).toFixed(1)),
-        actual: parseFloat(wt.filter(t => t.done).reduce((a, t) => a + dur(t), 0).toFixed(1)),
-      }
-    })
-  }, [tasks, n, unit])
-  if (!data.some(d => d.planned > 0 || d.actual > 0)) return <Empty />
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-        <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#aaa' }} axisLine={{ stroke: '#1e1e1e' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#aaa' }} unit="h" axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v, name) => [`${v}h`, name === 'planned' ? 'Planned' : 'Completed']} contentStyle={{ background: '#111', border: '1px solid #252525', borderRadius: 6, color: '#f0f0f0', fontSize: 12 }} />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#aaa' }} />
-        <Bar dataKey="planned" name="Planned" fill="#6b9fff" radius={[4, 4, 0, 0]} />
-        <Bar dataKey="actual" name="Completed" fill="#10b981" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  )
-}
-
 function CompletionTimelineChart({ tasks, n, unit }) {
   const data = useMemo(() => {
     return buildTimeBuckets(n, unit).map(({ label, match }) => {
@@ -459,33 +508,58 @@ function CompletionTimelineChart({ tasks, n, unit }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
       <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#aaa' }} axisLine={{ stroke: '#1e1e1e' }} tickLine={false} />
-        <YAxis tick={{ fontSize: 12, fill: '#aaa' }} axisLine={false} tickLine={false} allowDecimals={false} />
-        <Tooltip contentStyle={{ background: '#111', border: '1px solid #252525', borderRadius: 6, color: '#f0f0f0', fontSize: 12 }} />
-        <Legend wrapperStyle={{ fontSize: 12, color: '#aaa' }} />
-        <Line type="monotone" dataKey="total" name="Scheduled" stroke="#6b9fff" strokeWidth={2} dot={{ r: 3, fill: '#6b9fff' }} />
-        <Line type="monotone" dataKey="done" name="Completed" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: '#10b981' }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#2A2F40" />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
+        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: '#7B819A' }} />
+        <Line type="monotone" dataKey="total" name="Scheduled" stroke="#6B8AFF" strokeWidth={2} dot={{ r: 3, fill: '#6B8AFF' }} />
+        <Line type="monotone" dataKey="done" name="Completed" stroke="#34D399" strokeWidth={2} dot={{ r: 3, fill: '#34D399' }} />
       </LineChart>
     </ResponsiveContainer>
   )
 }
 
-const AGING_COLORS = ['#6b9fff', '#f59e0b', '#ef4444', '#dc2626', '#991b1b']
+const AGING_BUCKETS = [
+  { label: 'Today', min: 0, max: 0 },
+  { label: '1–3 days', min: 1, max: 3 },
+  { label: '4–7 days', min: 4, max: 7 },
+  { label: '1–2 weeks', min: 8, max: 14 },
+  { label: '2+ weeks', min: 15, max: Infinity },
+]
 
-function TaskAgingChart({ pendingTasks, n, unit }) {
-  const data = useMemo(() => buildAgingData(filterLastN(pendingTasks, n, unit)), [pendingTasks, n, unit])
-  if (!data.some(d => d.count > 0)) return <Empty />
+function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit }) {
+  const { data, catKeys } = useMemo(() => {
+    const filtered = filterLastN(pendingTasks, n, unit).filter(t => !t.done && t.date)
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const cats = categories.length > 0 ? categories : [{ id: '__all', name: 'All', color: '#6B8AFF' }]
+    const rows = AGING_BUCKETS.map(({ label, min, max }) => {
+      const bucketTasks = filtered.filter(t => {
+        const diff = Math.floor((today - new Date(t.date + 'T00:00:00')) / 86400000)
+        return diff >= 0 && diff >= min && diff <= max
+      })
+      const row = { label }
+      cats.forEach(cat => {
+        const ct = cat.id === '__all' ? bucketTasks : bucketTasks.filter(t => taskCatMap[t.id]?.includes(cat.id))
+        row[cat.name] = ct.length
+      })
+      return row
+    })
+    return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
+  }, [pendingTasks, categories, taskCatMap, n, unit])
+  if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
   return (
-    <ResponsiveContainer width="100%" height={180}>
-      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 10 }}>
-        <XAxis type="number" tick={{ fontSize: 12, fill: '#aaa' }} axisLine={false} tickLine={false} allowDecimals={false} />
-        <YAxis type="category" dataKey="label" tick={{ fontSize: 12, fill: '#aaa' }} axisLine={false} tickLine={false} width={70} />
-        <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ background: '#111', border: '1px solid #252525', borderRadius: 6, color: '#f0f0f0', fontSize: 12 }} formatter={(v) => [v, 'Pending tasks']} />
-        <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-          {data.map((_, i) => <Cell key={i} fill={AGING_COLORS[i]} />)}
-        </Bar>
-      </BarChart>
+    <ResponsiveContainer width="100%" height={200}>
+      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#2A2F40" />
+        <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#7B819A' }} axisLine={{ stroke: '#1E2230' }} tickLine={false} />
+        <YAxis tick={{ fontSize: 12, fill: '#7B819A' }} axisLine={false} tickLine={false} allowDecimals={false} />
+        <Tooltip contentStyle={{ background: '#131620', border: '1px solid #2A2F40', borderRadius: 6, color: '#E2E4EA', fontSize: 12 }} />
+        <Legend wrapperStyle={{ fontSize: 12, color: '#7B819A' }} />
+        {catKeys.map(c => (
+          <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={{ r: 3, fill: c.color }} />
+        ))}
+      </LineChart>
     </ResponsiveContainer>
   )
 }
