@@ -13,8 +13,7 @@ export default function Login() {
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: 'system-ui, sans-serif' }}>
       {/* Left — form */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px 48px', backgroundImage: `url(${logo})`, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
-        <div style={{ position: 'absolute', inset: 0, background: T.overlay }} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '40px 48px', background: T.surface, position: 'relative' }}>
 
         {/* Content above overlay */}
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', flex: 1 }}>
