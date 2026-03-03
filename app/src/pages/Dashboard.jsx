@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend,
-  LineChart, Line, CartesianGrid,
+  LineChart, Line, CartesianGrid, Legend,
 } from 'recharts'
 import supabase from '../lib/supabase'
 import { T } from '../theme'
@@ -142,7 +141,7 @@ function Card({ title, children, style }) {
 
 function StatBadge({ label, value, color }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
       <span style={{ fontSize: 28, fontWeight: 700, color: color || T.text }}>{value}</span>
       <span style={{ fontSize: 13, color: T.textSub }}>{label}</span>
     </div>
@@ -158,8 +157,6 @@ function Empty() {
 export default function Dashboard() {
   const [tasks, setTasks] = useState([])
   const [pendingTasks, setPendingTasks] = useState([])
-  const [categories, setCategories] = useState([])
-  const [taskCatMap, setTaskCatMap] = useState({})
   const [loading, setLoading] = useState(true)
 
   const [unit, setUnit] = useState('week')
@@ -189,23 +186,7 @@ export default function Dashboard() {
         .from('tasks').select('*')
         .gte('date', isoDate(sixMonthsAgo))
         .order('date', { ascending: true })
-      if (data) {
-        setTasks(data)
-        const ids = data.map(t => t.id)
-        if (ids.length > 0) {
-          const { data: tcData } = await supabase.from('task_categories').select('*').in('task_id', ids)
-          if (tcData) {
-            const map = {}
-            tcData.forEach(tc => {
-              if (!map[tc.task_id]) map[tc.task_id] = []
-              map[tc.task_id].push(tc.category_id)
-            })
-            setTaskCatMap(map)
-          }
-        }
-      }
-      const { data: cats } = await supabase.from('categories').select('*').order('created_at')
-      if (cats) setCategories(cats)
+      if (data) setTasks(data)
       const { data: pending } = await supabase.from('tasks').select('id, date, done').eq('done', false)
       if (pending) setPendingTasks(pending)
       setLoading(false)
@@ -263,17 +244,17 @@ export default function Dashboard() {
       <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
         {/* Stat row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
-          <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 12px' }}>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <Card style={{ flex: 1, padding: '16px 20px' }}>
             <StatBadge label="Total tasks" value={totalTasks} color={T.text} />
           </Card>
-          <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 12px' }}>
+          <Card style={{ flex: 1, padding: '16px 20px' }}>
             <StatBadge label="Completed" value={doneTasks} color="#10b981" />
           </Card>
-          <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 12px' }}>
+          <Card style={{ flex: 1, padding: '16px 20px' }}>
             <StatBadge label="Overall rate" value={`${overallRate}%`} color="#3b82f6" />
           </Card>
-          <Card style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px 12px' }}>
+          <Card style={{ flex: 1, padding: '16px 20px' }}>
             <StatBadge label="This week" value={`${thisWeekDone}/${thisWeekTotal}`} color="#8b5cf6" />
           </Card>
         </div>
@@ -287,14 +268,9 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          <Card title="Scheduled hours by day of week">
-            <TimeDistChart tasks={tasks} n={n} unit={unit} />
-          </Card>
-          <Card title="Tasks by categories">
-            <CategoryChart tasks={tasks} categories={categories} taskCatMap={taskCatMap} n={n} unit={unit} />
-          </Card>
-        </div>
+        <Card title="Scheduled hours by day of week">
+          <TimeDistChart tasks={tasks} n={n} unit={unit} />
+        </Card>
 
         <Card title="Activity streak">
           <StreakCalendar tasks={tasks} n={n} unit={unit} />
@@ -401,36 +377,9 @@ function TimeDistChart({ tasks, n, unit }) {
   )
 }
 
-function CategoryChart({ tasks, categories, taskCatMap, n, unit }) {
-  const data = useMemo(() => {
-    const filtered = filterLastN(tasks, n, unit)
-    return categories
-      .map(cat => ({
-        name: cat.name,
-        color: cat.color,
-        value: filtered.filter(t => taskCatMap[t.id]?.includes(cat.id)).length,
-      }))
-      .filter(d => d.value > 0)
-      .sort((a, b) => b.value - a.value)
-  }, [tasks, categories, taskCatMap, n, unit])
-  if (data.length === 0) return <Empty />
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <PieChart>
-        <Pie data={data} dataKey="value" nameKey="name" cx="45%" cy="50%" outerRadius={75} innerRadius={38} paddingAngle={2}>
-          {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-        </Pie>
-        <Tooltip contentStyle={{ background: '#111', border: '1px solid #252525', borderRadius: 6, color: '#f0f0f0', fontSize: 12 }} />
-        <Legend iconSize={10} iconType="circle" wrapperStyle={{ fontSize: 13, color: '#aaa' }} />
-      </PieChart>
-    </ResponsiveContainer>
-  )
-}
-
 function StreakCalendar({ tasks, n, unit }) {
   const numWeeks = toStreakWeeks(n, unit)
   const data = useMemo(() => buildStreakData(tasks, numWeeks), [tasks, numWeeks])
-  const today = new Date().toISOString().split('T')[0]
   const cellH = numWeeks > 12 ? 14 : 20
   return (
     <div>
@@ -448,10 +397,10 @@ function StreakCalendar({ tasks, n, unit }) {
                 <div
                   key={date}
                   title={total > 0 ? `${date}: ${done}/${total} done` : date}
-                  style={{ flex: 1, height: cellH, borderRadius: 3, background: future ? T.bg : '#2e2e2e', border: date === today ? `2px solid ${T.accent}` : '2px solid transparent', position: 'relative', overflow: 'hidden' }}
+                  style={{ flex: 1, height: cellH, borderRadius: 3, background: T.bg, border: future ? '1px solid transparent' : `1px solid ${T.borderStrong}`, position: 'relative', overflow: 'hidden' }}
                 >
                   {!future && total > 0 && (
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: `${ratio * 100}%`, background: T.success }} />
+                    <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${ratio * 100}%`, background: '#2EFF46', borderRadius: 3 }} />
                   )}
                 </div>
               )
@@ -460,9 +409,8 @@ function StreakCalendar({ tasks, n, unit }) {
         ))}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 11, color: T.textSub }}>
-        <div style={{ width: 12, height: 12, borderRadius: 2, background: '#2e2e2e', border: `1px solid ${T.borderStrong}` }} /> No tasks
-        <div style={{ width: 12, height: 12, borderRadius: 2, background: T.success, opacity: 0.4 }} /> Partial
-        <div style={{ width: 12, height: 12, borderRadius: 2, background: T.success }} /> All done
+        <div style={{ width: 12, height: 12, borderRadius: 2, background: T.bg, border: `1px solid ${T.borderStrong}` }} /> No tasks
+        <div style={{ width: 12, height: 12, borderRadius: 2, background: '#2EFF46' }} /> Done
       </div>
     </div>
   )
