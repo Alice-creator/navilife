@@ -27,7 +27,7 @@ function formatRange(days) {
   return `${start} – ${end}`
 }
 
-export default function Week({ categories, onCategoriesChange }) {
+export default function Week({ categories, onCategoriesChange, stories, onStoriesChange }) {
   const [weekStart, setWeekStart] = useState(getMondayOfWeek(new Date()))
   const [tasks, setTasks] = useState([])
   const [taskCatMap, setTaskCatMap] = useState({})
@@ -109,6 +109,8 @@ export default function Week({ categories, onCategoriesChange }) {
         editTask={editTask}
         categories={categories}
         onCategoriesChange={onCategoriesChange}
+        stories={stories}
+        onStoriesChange={onStoriesChange}
         onTaskChanged={handleTaskChanged}
       />
 
@@ -128,6 +130,7 @@ export default function Week({ categories, onCategoriesChange }) {
             tasks={tasks}
             categories={categories}
             taskCatMap={taskCatMap}
+            stories={stories}
             onSlotClick={handleSlotClick}
             onTaskClick={(task) => handleTaskClick(task, taskCatMap[task.id] || [])}
             onTaskMove={handleTaskMove}

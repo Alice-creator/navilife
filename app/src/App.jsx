@@ -10,6 +10,7 @@ import Nav from './components/Nav'
 export default function App() {
   const [session, setSession] = useState(undefined)
   const [categories, setCategories] = useState([])
+  const [stories, setStories] = useState([])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -27,6 +28,9 @@ export default function App() {
     if (session) {
       supabase.from('categories').select('*').order('created_at').then(({ data }) => {
         if (data) setCategories(data)
+      })
+      supabase.from('stories').select('*').order('created_at').then(({ data }) => {
+        if (data) setStories(data)
       })
     }
   }, [session])
@@ -50,9 +54,11 @@ export default function App() {
                       <Week
                         categories={categories}
                         onCategoriesChange={setCategories}
+                        stories={stories}
+                        onStoriesChange={setStories}
                       />
                     } />
-                    <Route path="/daily" element={<Daily categories={categories} />} />
+                    <Route path="/daily" element={<Daily categories={categories} stories={stories} />} />
                   </Routes>
                 </div>
               </div>

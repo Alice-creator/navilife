@@ -11,7 +11,7 @@ function formatTime(timeStr) {
   return `${hour12}:${m.toString().padStart(2, '0')} ${suffix}`
 }
 
-export default function Daily({ categories }) {
+export default function Daily({ categories, stories }) {
   const [tasks, setTasks] = useState([])
   const [taskCatMap, setTaskCatMap] = useState({})
   const [loading, setLoading] = useState(true)
@@ -50,6 +50,9 @@ export default function Daily({ categories }) {
 
   const catById = {}
   categories.forEach(c => { catById[c.id] = c })
+
+  const storyById = {}
+  ;(stories || []).forEach(s => { storyById[s.id] = s })
 
   const todayTasks = tasks
     .filter(t => t.date === today)
@@ -125,7 +128,7 @@ export default function Daily({ categories }) {
             <>
               <SectionHeader label="Overdue" count={overdueTasks.length} color={T.warning} />
               {overdueTasks.map(task => (
-                <TaskRow key={task.id} task={task} catById={catById} taskCatMap={taskCatMap} onToggle={handleCycleStatus} onSelect={handleSelectTask} selectedId={selectedTaskId} isOverdue />
+                <TaskRow key={task.id} task={task} catById={catById} storyById={storyById} taskCatMap={taskCatMap} onToggle={handleCycleStatus} onSelect={handleSelectTask} selectedId={selectedTaskId} isOverdue />
               ))}
               <div style={{ height: 20 }} />
             </>
@@ -139,7 +142,7 @@ export default function Daily({ categories }) {
             </div>
           )}
           {todayTasks.map(task => (
-            <TaskRow key={task.id} task={task} catById={catById} taskCatMap={taskCatMap} onToggle={handleCycleStatus} onSelect={handleSelectTask} selectedId={selectedTaskId} />
+            <TaskRow key={task.id} task={task} catById={catById} storyById={storyById} taskCatMap={taskCatMap} onToggle={handleCycleStatus} onSelect={handleSelectTask} selectedId={selectedTaskId} />
           ))}
 
           {/* Global empty state */}
@@ -179,8 +182,9 @@ function SectionHeader({ label, count, color }) {
   )
 }
 
-function TaskRow({ task, catById, taskCatMap, onToggle, onSelect, selectedId, isOverdue }) {
+function TaskRow({ task, catById, storyById, taskCatMap, onToggle, onSelect, selectedId, isOverdue }) {
   const catIds = taskCatMap[task.id] || []
+  const story = task.story_id ? storyById[task.story_id] : null
   const isSelected = selectedId === task.id
 
   return (
@@ -230,6 +234,12 @@ function TaskRow({ task, catById, taskCatMap, onToggle, onSelect, selectedId, is
         }}>
           {task.title}
         </div>
+        {story && (
+          <div style={{ fontSize: 11, color: story.color, marginTop: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: story.color, flexShrink: 0 }} />
+            {story.title}
+          </div>
+        )}
         {isOverdue && task.status !== 'done' && (
           <div style={{ fontSize: 11, color: T.warning, marginTop: 1 }}>
             {task.date}

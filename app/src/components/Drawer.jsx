@@ -16,11 +16,15 @@ function stripSeconds(t) {
   return t.split(':').slice(0, 2).join(':')
 }
 
-export default function Drawer({ slot, editTask, categories, onCategoriesChange, onTaskChanged }) {
+export default function Drawer({ slot, editTask, categories, onCategoriesChange, stories, onStoriesChange, onTaskChanged }) {
   const [activeTab, setActiveTab] = useState(null)
 
   const [catName, setCatName] = useState('')
   const [catColor, setCatColor] = useState(PRESET_COLORS[0])
+
+  const [storyTitle, setStoryTitle] = useState('')
+  const [storyDesc, setStoryDesc] = useState('')
+  const [storyColor, setStoryColor] = useState(PRESET_COLORS[0])
 
   const [editingId, setEditingId] = useState(null)
   const [title, setTitle] = useState('')
@@ -28,6 +32,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('09:30')
   const [selectedCats, setSelectedCats] = useState([])
+  const [selectedStoryId, setSelectedStoryId] = useState(null)
   const [status, setStatus] = useState('todo')
   const [note, setNote] = useState('')
 
@@ -42,6 +47,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
       setEndTime(addMinutes(slot.time, 30))
       setTitle('')
       setSelectedCats([])
+      setSelectedStoryId(null)
     }
   }, [slot])
 
@@ -54,6 +60,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
       setStartTime(stripSeconds(editTask.start_time) || '09:00')
       setEndTime(stripSeconds(editTask.end_time) || '09:30')
       setSelectedCats(editTask.category_ids || [])
+      setSelectedStoryId(editTask.story_id || null)
       setStatus(editTask.status || 'todo')
       setNote(editTask.note || '')
     }
@@ -72,8 +79,27 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
         setStartTime('09:00')
         setEndTime('09:30')
         setSelectedCats([])
+        setSelectedStoryId(null)
       }
     }
+  }
+
+  async function handleAddStory(e) {
+    e.preventDefault()
+    if (!storyTitle.trim()) return
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('stories').insert({ title: storyTitle.trim(), description: storyDesc.trim(), color: storyColor, user_id: user.id }).select().single()
+    if (data) {
+      onStoriesChange([...stories, data])
+      setStoryTitle('')
+      setStoryDesc('')
+      setStoryColor(PRESET_COLORS[0])
+    }
+  }
+
+  async function handleDeleteStory(id) {
+    await supabase.from('stories').delete().eq('id', id)
+    onStoriesChange(stories.filter(s => s.id !== id))
   }
 
   async function handleAddCategory(e) {
@@ -104,7 +130,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
     if (editingId) {
       const { data: task } = await supabase
         .from('tasks')
-        .update({ title: title.trim(), date, start_time: startTime, end_time: endTime, note })
+        .update({ title: title.trim(), date, start_time: startTime, end_time: endTime, note, story_id: selectedStoryId })
         .eq('id', editingId)
         .select()
         .single()
@@ -120,7 +146,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
       const { data: { user } } = await supabase.auth.getUser()
       const { data: task } = await supabase
         .from('tasks')
-        .insert({ title: title.trim(), date, start_time: startTime, end_time: endTime, status: 'todo', note, user_id: user.id })
+        .insert({ title: title.trim(), date, start_time: startTime, end_time: endTime, status: 'todo', note, story_id: selectedStoryId, user_id: user.id })
         .select()
         .single()
 
@@ -133,6 +159,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
         setTitle('')
         setNote('')
         setSelectedCats([])
+        setSelectedStoryId(null)
       }
     }
   }
@@ -168,6 +195,11 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
             <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="3" />
           </svg>
         </IconBtn>
+        <IconBtn active={activeTab === 'stories'} onClick={() => handleIconClick('stories')} title="Stories">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
+        </IconBtn>
         <IconBtn active={activeTab === 'task'} onClick={() => handleIconClick('task')} title="New Task">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -180,7 +212,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
         {/* Header */}
         <div style={{ padding: '12px 14px', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: T.textDim, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            {activeTab === 'categories' ? 'Categories' : isEditing ? 'Edit Task' : 'New Task'}
+            {activeTab === 'categories' ? 'Categories' : activeTab === 'stories' ? 'Stories' : isEditing ? 'Edit Task' : 'New Task'}
           </div>
         </div>
 
@@ -195,6 +227,19 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
               setCatColor={setCatColor}
               onAdd={handleAddCategory}
               onDelete={handleDeleteCategory}
+            />
+          )}
+          {activeTab === 'stories' && (
+            <StoriesTab
+              stories={stories}
+              storyTitle={storyTitle}
+              setStoryTitle={setStoryTitle}
+              storyDesc={storyDesc}
+              setStoryDesc={setStoryDesc}
+              storyColor={storyColor}
+              setStoryColor={setStoryColor}
+              onAdd={handleAddStory}
+              onDelete={handleDeleteStory}
             />
           )}
           {activeTab === 'task' && (
@@ -214,6 +259,9 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
               categories={categories}
               selectedCats={selectedCats}
               toggleCat={toggleCat}
+              stories={stories}
+              selectedStoryId={selectedStoryId}
+              setSelectedStoryId={setSelectedStoryId}
               onSave={handleSaveTask}
               onDelete={handleDeleteTask}
               onSetStatus={handleSetStatus}
@@ -234,6 +282,43 @@ function IconBtn({ active, onClick, title, children }) {
     >
       {children}
     </button>
+  )
+}
+
+function StoriesTab({ stories, storyTitle, setStoryTitle, storyDesc, setStoryDesc, storyColor, setStoryColor, onAdd, onDelete }) {
+  return (
+    <div>
+      {stories.length === 0 && (
+        <p style={{ fontSize: 12, color: T.textDim, textAlign: 'center', margin: '12px 0' }}>No stories yet</p>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 18 }}>
+        {stories.map(story => (
+          <div key={story.id} style={{ padding: '8px 10px', background: T.elevated, borderRadius: 5, border: `1px solid ${T.borderStrong}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 10, height: 10, borderRadius: '50%', background: story.color, flexShrink: 0 }} />
+              <span style={{ flex: 1, fontSize: 13, color: T.text, fontWeight: 600 }}>{story.title}</span>
+              <button onClick={() => onDelete(story.id)} style={{ background: 'none', border: 'none', fontSize: 16, color: T.textFaint, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }} title="Delete">×</button>
+            </div>
+            {story.description && (
+              <div style={{ fontSize: 11, color: T.textSub, marginTop: 4, paddingLeft: 18 }}>{story.description}</div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <form onSubmit={onAdd}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: T.textDim, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Add new</div>
+        <input value={storyTitle} onChange={e => setStoryTitle(e.target.value)} placeholder="Story title" style={{ ...inputStyle, marginBottom: 8 }} />
+        <textarea value={storyDesc} onChange={e => setStoryDesc(e.target.value)} placeholder="Description (optional)" rows={2} style={{ ...inputStyle, marginBottom: 8, resize: 'vertical', fontFamily: 'inherit' }} />
+        <div style={{ display: 'flex', gap: 5, marginBottom: 10, flexWrap: 'wrap' }}>
+          {PRESET_COLORS.map(c => (
+            <div key={c} onClick={() => setStoryColor(c)} style={{ width: 22, height: 22, borderRadius: '50%', background: c, cursor: 'pointer', border: storyColor === c ? `2px solid ${T.text}` : '2px solid transparent', boxShadow: storyColor === c ? `0 0 0 1px ${T.borderStrong}` : 'none' }} />
+          ))}
+        </div>
+        <button type="submit" style={primaryBtnStyle}>Add Story</button>
+      </form>
+    </div>
   )
 }
 
@@ -268,7 +353,7 @@ function CategoriesTab({ categories, catName, setCatName, catColor, setCatColor,
   )
 }
 
-function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setDate, startTime, setStartTime, endTime, setEndTime, categories, selectedCats, toggleCat, onSave, onDelete, onSetStatus }) {
+function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setDate, startTime, setStartTime, endTime, setEndTime, categories, selectedCats, toggleCat, stories, selectedStoryId, setSelectedStoryId, onSave, onDelete, onSetStatus }) {
   return (
     <form onSubmit={onSave}>
       {isEditing && (
@@ -328,6 +413,22 @@ function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setD
           <input type="time" step="900" value={endTime} onChange={e => setEndTime(e.target.value)} style={inputStyle} />
         </div>
       </div>
+
+      {stories.length > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <Label>Story</Label>
+          <select
+            value={selectedStoryId || ''}
+            onChange={e => setSelectedStoryId(e.target.value ? Number(e.target.value) : null)}
+            style={inputStyle}
+          >
+            <option value="">No story</option>
+            {stories.map(s => (
+              <option key={s.id} value={s.id}>{s.title}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {categories.length > 0 && (
         <div style={{ marginBottom: 14 }}>

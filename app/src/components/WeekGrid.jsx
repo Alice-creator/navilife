@@ -35,7 +35,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
-export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}, onSlotClick, onTaskClick, onTaskMove }) {
+export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}, stories = [], onSlotClick, onTaskClick, onTaskMove }) {
   const gridRef = useRef(null)
   const dragRef = useRef(null)
   const resizeRef = useRef(null)
@@ -46,6 +46,9 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
 
   const catById = {}
   categories.forEach(c => { catById[c.id] = c })
+
+  const storyById = {}
+  stories.forEach(s => { storyById[s.id] = s })
 
   function getTaskColor(task) {
     const catIds = taskCatMap[task.id]
@@ -352,6 +355,11 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
                       style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, cursor: 'n-resize' }}
                     />
                     {task.title}
+                    {task.story_id && storyById[task.story_id] && (
+                      <div style={{ fontSize: 10, opacity: 0.7, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {storyById[task.story_id].title}
+                      </div>
+                    )}
                     {/* Bottom resize handle */}
                     <div
                       onMouseDown={(e) => handleResizeMouseDown(e, task, 'bottom')}
