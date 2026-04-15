@@ -36,7 +36,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
+        <Route path="/login" element={!session ? <Login /> : <Navigate to="/daily" />} />
         <Route
           path="/*"
           element={
