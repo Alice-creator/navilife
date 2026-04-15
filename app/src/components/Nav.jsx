@@ -27,6 +27,7 @@ export default function Nav({ user }) {
       <NavLink to="/" end style={({ isActive }) => linkStyle(isActive)}>Dashboard</NavLink>
       <NavLink to="/schedule" style={({ isActive }) => linkStyle(isActive)}>Schedule</NavLink>
       <NavLink to="/daily" style={({ isActive }) => linkStyle(isActive)}>Daily</NavLink>
+      <NavLink to="/kanban" style={({ isActive }) => linkStyle(isActive)}>Kanban</NavLink>
 
       <div ref={menuRef} style={{ marginLeft: 'auto', position: 'relative' }}>
         <button
@@ -63,6 +64,9 @@ export default function Nav({ user }) {
               </MenuItem>
               <MenuItem onClick={() => setMenuOpen(false)}>
                 <NavLink to="/daily" style={{ textDecoration: 'none', color: 'inherit', display: 'block', width: '100%' }}>Daily</NavLink>
+              </MenuItem>
+              <MenuItem onClick={() => setMenuOpen(false)}>
+                <NavLink to="/kanban" style={{ textDecoration: 'none', color: 'inherit', display: 'block', width: '100%' }}>Kanban</NavLink>
               </MenuItem>
             </div>
 

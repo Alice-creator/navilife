@@ -5,6 +5,7 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Week from './pages/Week'
 import Daily from './pages/Daily'
+import Kanban from './pages/Kanban'
 import Nav from './components/Nav'
 
 export default function App() {
@@ -59,6 +60,7 @@ export default function App() {
                       />
                     } />
                     <Route path="/daily" element={<Daily categories={categories} stories={stories} />} />
+                    <Route path="/kanban" element={<Kanban categories={categories} stories={stories} />} />
                   </Routes>
                 </div>
               </div>
