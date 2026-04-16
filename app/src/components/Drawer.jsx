@@ -37,6 +37,9 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
   const [priority, setPriority] = useState(null)
   const [points, setPoints] = useState('')
   const [note, setNote] = useState('')
+  const [reminderDate, setReminderDate] = useState('')
+  const [reminderTime, setReminderTime] = useState('')
+  const [existingReminders, setExistingReminders] = useState([])
 
   useEffect(() => {
     if (slot) {
@@ -46,6 +49,9 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
       setPriority(null)
       setPoints('')
       setNote('')
+      setReminderDate('')
+      setReminderTime('')
+      setExistingReminders([])
       setDate(slot.date)
       setStartTime(slot.time)
       setEndTime(addMinutes(slot.time, 30))
@@ -69,6 +75,12 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
       setPriority(editTask.priority || null)
       setPoints(editTask.points != null ? String(editTask.points) : '')
       setNote(editTask.note || '')
+      setReminderDate('')
+      setReminderTime('')
+      // Load existing reminders for this task
+      supabase.from('reminders').select('*').eq('task_id', editTask.id).eq('sent', false).order('remind_at').then(({ data }) => {
+        setExistingReminders(data || [])
+      })
     }
   }, [editTask])
 
@@ -83,6 +95,9 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
         setNote('')
         setPriority(null)
         setPoints('')
+        setReminderDate('')
+        setReminderTime('')
+        setExistingReminders([])
         setDate(new Date().toISOString().split('T')[0])
         setStartTime('09:00')
         setEndTime('09:30')
@@ -193,6 +208,24 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
     onTaskChanged()
   }
 
+  async function handleAddReminder() {
+    if (!reminderDate || !reminderTime) return
+    const taskId = editingId
+    const remindAt = new Date(`${reminderDate}T${reminderTime}`).toISOString()
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('reminders').insert({ task_id: taskId, remind_at: remindAt, user_id: user.id }).select().single()
+    if (data) {
+      setExistingReminders(prev => [...prev, data])
+      setReminderDate('')
+      setReminderTime('')
+    }
+  }
+
+  async function handleDeleteReminder(id) {
+    await supabase.from('reminders').delete().eq('id', id)
+    setExistingReminders(prev => prev.filter(r => r.id !== id))
+  }
+
   const expanded = activeTab !== null
   const isEditing = activeTab === 'task' && editingId !== null
 
@@ -276,6 +309,13 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
               setPriority={setPriority}
               points={points}
               setPoints={setPoints}
+              reminderDate={reminderDate}
+              setReminderDate={setReminderDate}
+              reminderTime={reminderTime}
+              setReminderTime={setReminderTime}
+              existingReminders={existingReminders}
+              onAddReminder={handleAddReminder}
+              onDeleteReminder={handleDeleteReminder}
               onSave={handleSaveTask}
               onDelete={handleDeleteTask}
               onSetStatus={handleSetStatus}
@@ -367,7 +407,7 @@ function CategoriesTab({ categories, catName, setCatName, catColor, setCatColor,
   )
 }
 
-function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setDate, startTime, setStartTime, endTime, setEndTime, categories, selectedCats, toggleCat, stories, selectedStoryId, setSelectedStoryId, priority, setPriority, points, setPoints, onSave, onDelete, onSetStatus }) {
+function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setDate, startTime, setStartTime, endTime, setEndTime, categories, selectedCats, toggleCat, stories, selectedStoryId, setSelectedStoryId, priority, setPriority, points, setPoints, reminderDate, setReminderDate, reminderTime, setReminderTime, existingReminders, onAddReminder, onDeleteReminder, onSave, onDelete, onSetStatus }) {
   return (
     <form onSubmit={onSave}>
       {isEditing && (
@@ -498,6 +538,53 @@ function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setD
                 {cat.name}
               </label>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reminder section */}
+      {isEditing && (
+        <div style={{ marginBottom: 14 }}>
+          <Label>Reminders</Label>
+
+          {/* Existing reminders */}
+          {existingReminders.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              {existingReminders.map(r => {
+                const d = new Date(r.remind_at)
+                return (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: T.elevated, borderRadius: 4, border: `1px solid ${T.borderStrong}` }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={T.warning} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                    </svg>
+                    <span style={{ flex: 1, fontSize: 11, color: T.text }}>
+                      {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} {d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <button onClick={() => onDeleteReminder(r.id)} type="button" style={{ background: 'none', border: 'none', fontSize: 14, color: T.textFaint, cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>×</button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Add new reminder */}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end' }}>
+            <input type="date" value={reminderDate} onChange={e => setReminderDate(e.target.value)} style={{ ...inputStyle, flex: 1, fontSize: 11 }} />
+            <input type="time" value={reminderTime} onChange={e => setReminderTime(e.target.value)} style={{ ...inputStyle, flex: 1, fontSize: 11 }} />
+            <button
+              type="button"
+              onClick={onAddReminder}
+              disabled={!reminderDate || !reminderTime}
+              style={{
+                padding: '7px 10px', border: 'none', borderRadius: 5,
+                background: reminderDate && reminderTime ? T.accent : T.elevated,
+                color: reminderDate && reminderTime ? T.buttonText : T.textDim,
+                fontSize: 11, fontWeight: 600, cursor: reminderDate && reminderTime ? 'pointer' : 'default',
+                flexShrink: 0,
+              }}
+            >
+              +
+            </button>
           </div>
         </div>
       )}
