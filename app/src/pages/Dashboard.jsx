@@ -162,6 +162,9 @@ export default function Dashboard() {
   const [taskCatMap, setTaskCatMap] = useState({})
   const [loading, setLoading] = useState(true)
 
+  const [drillTasks, setDrillTasks] = useState(null)
+  const [drillLabel, setDrillLabel] = useState('')
+
   const [unit, setUnit] = useState('week')
   const [n, setN] = useState(8)
   const [nInput, setNInput] = useState('8')
@@ -214,7 +217,7 @@ export default function Dashboard() {
         .gte('date', isoDate(sixMonthsAgo))
         .order('date', { ascending: true })
       if (data) setTasks(data)
-      const { data: pending } = await supabase.from('tasks').select('id, date, status').neq('status', 'done')
+      const { data: pending } = await supabase.from('tasks').select('id, title, date, status, start_time, end_time').neq('status', 'done')
       if (pending) setPendingTasks(pending)
       const allIds = [...new Set([...(data || []).map(t => t.id), ...(pending || []).map(t => t.id)])]
       if (allIds.length > 0) {
@@ -339,29 +342,99 @@ export default function Dashboard() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <Card title="Completion by day of week">
-            <CompletionByDayChart tasks={tasks} n={n} unit={unit} />
+            <CompletionByDayChart tasks={tasks} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
           </Card>
           <Card title="Completion trend">
-            <TrendChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} />
+            <TrendChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
           </Card>
         </div>
 
         <Card title="Scheduled hours by day of week">
-          <TimeDistChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} />
+          <TimeDistChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
         </Card>
 
         <Card title="Activity streak">
-          <StreakCalendar tasks={tasks} n={n} unit={unit} />
+          <StreakCalendar tasks={tasks} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
         </Card>
 
         <Card title="Task completion over time">
-          <CompletionTimelineChart tasks={tasks} n={n} unit={unit} />
+          <CompletionTimelineChart tasks={tasks} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
         </Card>
 
         <Card title="Pending task aging">
-          <TaskAgingChart pendingTasks={pendingTasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} />
+          <TaskAgingChart pendingTasks={pendingTasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
         </Card>
 
+      </div>
+
+      {/* Drill-down panel */}
+      {drillTasks && (
+        <TaskDrillPanel
+          label={drillLabel}
+          tasks={drillTasks}
+          onClose={() => setDrillTasks(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Drill-down panel ─────────────────────────────────────────────────────────
+
+function TaskDrillPanel({ label, tasks, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: T.surface, borderRadius: 10, border: `1px solid ${T.borderStrong}`, width: 480, maxHeight: '70vh', display: 'flex', flexDirection: 'column', boxShadow: T.shadowHeavy }}
+      >
+        {/* Header */}
+        <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{label}</div>
+            <div style={{ fontSize: 12, color: T.textSub }}>{tasks.length} task{tasks.length !== 1 ? 's' : ''}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: T.textSub, cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+
+        {/* Task list */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+          {tasks.length === 0 && (
+            <div style={{ padding: 20, textAlign: 'center', color: T.textDim, fontSize: 13 }}>No tasks</div>
+          )}
+          {tasks.map(task => (
+            <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderBottom: `1px solid ${T.border}` }}>
+              {/* Status dot */}
+              <div style={{
+                width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                background: task.status === 'done' ? T.success : task.status === 'in_progress' ? T.warning : T.textDim,
+              }} />
+              {/* Info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13, color: T.text, fontWeight: 500,
+                  textDecoration: task.status === 'done' ? 'line-through' : 'none',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>{task.title}</div>
+                <div style={{ fontSize: 11, color: T.textSub }}>
+                  {task.date}
+                  {task.start_time && task.end_time && ` · ${task.start_time.slice(0,5)}–${task.end_time.slice(0,5)}`}
+                </div>
+              </div>
+              {/* Status label */}
+              <span style={{
+                fontSize: 10, fontWeight: 600, flexShrink: 0, padding: '2px 8px', borderRadius: 4,
+                color: task.status === 'done' ? T.success : task.status === 'in_progress' ? T.warning : T.textSub,
+                background: task.status === 'done' ? T.successSoft : task.status === 'in_progress' ? T.warningSoft : T.elevated,
+              }}>
+                {task.status === 'done' ? 'Done' : task.status === 'in_progress' ? 'In Progress' : 'To Do'}
+              </span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -369,7 +442,7 @@ export default function Dashboard() {
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
-function CompletionByDayChart({ tasks, n, unit }) {
+function CompletionByDayChart({ tasks, n, unit, onShowTasks, onShowLabel }) {
   const data = useMemo(() => {
     const filtered = filterLastN(tasks, n, unit)
     return DAYS.map((day, i) => {
@@ -379,17 +452,20 @@ function CompletionByDayChart({ tasks, n, unit }) {
       })
       const done = dayTasks.filter(t => t.status === 'done').length
       const total = dayTasks.length
-      return { day, done, total, rate: total > 0 ? Math.round((done / total) * 100) : 0 }
+      return { day, done, total, rate: total > 0 ? Math.round((done / total) * 100) : 0, _tasks: dayTasks }
     })
   }, [tasks, n, unit])
   if (data.every(d => d.total === 0)) return <Empty />
+  function handleClick(entry) {
+    if (entry?._tasks?.length) { onShowLabel(entry.day); onShowTasks(entry._tasks) }
+  }
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
         <XAxis dataKey="day" tick={{ ...tickStyle, fontSize: 13 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
         <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}%`} contentStyle={tooltipStyle} />
-        <Bar dataKey="rate" radius={[4, 4, 0, 0]}>
+        <Bar dataKey="rate" radius={[4, 4, 0, 0]} onClick={handleClick} style={{ cursor: 'pointer' }}>
           {data.map((entry, i) => (
             <Cell key={i} fill={entry.rate >= 80 ? T.success : entry.rate >= 50 ? T.accent : entry.rate > 0 ? T.warning : T.border} />
           ))}
@@ -399,13 +475,13 @@ function CompletionByDayChart({ tasks, n, unit }) {
   )
 }
 
-function TrendChart({ tasks, categories, taskCatMap, n, unit }) {
+function TrendChart({ tasks, categories, taskCatMap, n, unit, onShowTasks, onShowLabel }) {
   const { data, catKeys } = useMemo(() => {
     const buckets = buildTimeBuckets(n, unit)
     const cats = catsOrFallback(categories)
     const rows = buckets.map(({ label, match }) => {
       const wt = tasks.filter(t => match(t))
-      const row = { label }
+      const row = { label, _tasks: wt }
       cats.forEach(cat => {
         let catTasks, catDone
         if (cat.id === '__all') {
@@ -422,9 +498,13 @@ function TrendChart({ tasks, categories, taskCatMap, n, unit }) {
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
   }, [tasks, categories, taskCatMap, n, unit])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
+  function handleClick(state) {
+    const payload = state?.activePayload?.[0]?.payload
+    if (payload?._tasks?.length) { onShowLabel(payload.label); onShowTasks(payload._tasks) }
+  }
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
+      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }} onClick={handleClick} style={{ cursor: 'pointer' }}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
@@ -438,7 +518,7 @@ function TrendChart({ tasks, categories, taskCatMap, n, unit }) {
   )
 }
 
-function TimeDistChart({ tasks, categories, taskCatMap, n, unit }) {
+function TimeDistChart({ tasks, categories, taskCatMap, n, unit, onShowTasks, onShowLabel }) {
   const { data, catKeys } = useMemo(() => {
     const filtered = filterLastN(tasks, n, unit).filter(t => t.start_time && t.end_time)
     const cats = catsOrFallback(categories)
@@ -447,7 +527,7 @@ function TimeDistChart({ tasks, categories, taskCatMap, n, unit }) {
         const dow = new Date(t.date + 'T00:00:00').getDay()
         return (dow === 0 ? 6 : dow - 1) === i
       })
-      const row = { day }
+      const row = { day, _tasks: dayTasks }
       cats.forEach(cat => {
         const ct = cat.id === '__all' ? dayTasks : dayTasks.filter(t => taskCatMap[t.id]?.includes(cat.id))
         row[cat.name] = parseFloat(ct.reduce((a, t) => a + dur(t), 0).toFixed(1))
@@ -457,9 +537,13 @@ function TimeDistChart({ tasks, categories, taskCatMap, n, unit }) {
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
   }, [tasks, categories, taskCatMap, n, unit])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
+  function handleClick(state) {
+    const payload = state?.activePayload?.[0]?.payload
+    if (payload?._tasks?.length) { onShowLabel(payload.day); onShowTasks(payload._tasks) }
+  }
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
+      <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }} onClick={handleClick} style={{ cursor: 'pointer' }}>
         <XAxis dataKey="day" tick={{ ...tickStyle, fontSize: 13 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} unit="h" axisLine={false} tickLine={false} />
         <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}h`} contentStyle={tooltipStyle} />
@@ -472,10 +556,14 @@ function TimeDistChart({ tasks, categories, taskCatMap, n, unit }) {
   )
 }
 
-function StreakCalendar({ tasks, n, unit }) {
+function StreakCalendar({ tasks, n, unit, onShowTasks, onShowLabel }) {
   const numWeeks = toStreakWeeks(n, unit)
   const data = useMemo(() => buildStreakData(tasks, numWeeks), [tasks, numWeeks])
   const cellH = numWeeks > 12 ? 14 : 20
+  function handleCellClick(dateStr) {
+    const dateTasks = tasks.filter(t => t.date === dateStr)
+    if (dateTasks.length) { onShowLabel(dateStr); onShowTasks(dateTasks) }
+  }
   return (
     <div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
@@ -492,7 +580,8 @@ function StreakCalendar({ tasks, n, unit }) {
                 <div
                   key={date}
                   title={total > 0 ? `${date}: ${done}/${total} done` : date}
-                  style={{ flex: 1, height: cellH, borderRadius: 3, background: T.bg, border: future ? '1px solid transparent' : `1px solid ${T.borderStrong}`, position: 'relative', overflow: 'hidden' }}
+                  onClick={() => !future && total > 0 && handleCellClick(date)}
+                  style={{ flex: 1, height: cellH, borderRadius: 3, background: T.bg, border: future ? '1px solid transparent' : `1px solid ${T.borderStrong}`, position: 'relative', overflow: 'hidden', cursor: !future && total > 0 ? 'pointer' : 'default' }}
                 >
                   {!future && total > 0 && (
                     <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: `${ratio * 100}%`, background: T.streak, borderRadius: 3 }} />
@@ -511,17 +600,21 @@ function StreakCalendar({ tasks, n, unit }) {
   )
 }
 
-function CompletionTimelineChart({ tasks, n, unit }) {
+function CompletionTimelineChart({ tasks, n, unit, onShowTasks, onShowLabel }) {
   const data = useMemo(() => {
     return buildTimeBuckets(n, unit).map(({ label, match }) => {
       const wt = tasks.filter(t => match(t))
-      return { label, total: wt.length, done: wt.filter(t => t.status === 'done').length }
+      return { label, total: wt.length, done: wt.filter(t => t.status === 'done').length, _tasks: wt }
     })
   }, [tasks, n, unit])
   if (!data.some(d => d.total > 0)) return <Empty />
+  function handleClick(state) {
+    const payload = state?.activePayload?.[0]?.payload
+    if (payload?._tasks?.length) { onShowLabel(payload.label); onShowTasks(payload._tasks) }
+  }
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
+      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }} onClick={handleClick} style={{ cursor: 'pointer' }}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
@@ -542,7 +635,7 @@ const AGING_BUCKETS = [
   { label: '2+ weeks', min: 15, max: Infinity },
 ]
 
-function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit }) {
+function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit, onShowTasks, onShowLabel }) {
   const { data, catKeys } = useMemo(() => {
     const filtered = filterLastN(pendingTasks, n, unit).filter(t => t.status !== 'done' && t.date)
     const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -552,7 +645,7 @@ function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit }) {
         const diff = Math.floor((today - new Date(t.date + 'T00:00:00')) / 86400000)
         return diff >= 0 && diff >= min && diff <= max
       })
-      const row = { label }
+      const row = { label, _tasks: bucketTasks }
       cats.forEach(cat => {
         const ct = cat.id === '__all' ? bucketTasks : bucketTasks.filter(t => taskCatMap[t.id]?.includes(cat.id))
         row[cat.name] = ct.length
@@ -562,9 +655,13 @@ function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit }) {
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
   }, [pendingTasks, categories, taskCatMap, n, unit])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
+  function handleClick(state) {
+    const payload = state?.activePayload?.[0]?.payload
+    if (payload?._tasks?.length) { onShowLabel(payload.label); onShowTasks(payload._tasks) }
+  }
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
+      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }} onClick={handleClick} style={{ cursor: 'pointer' }}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
