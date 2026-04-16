@@ -354,7 +354,21 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
                       onMouseDown={(e) => handleResizeMouseDown(e, task, 'top')}
                       style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, cursor: 'n-resize' }}
                     />
-                    {task.title}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span>{task.title}</span>
+                      {task.priority && (
+                        <span style={{
+                          fontSize: 8, fontWeight: 700, padding: '0 3px', borderRadius: 2, lineHeight: '14px',
+                          color: task.priority === 'high' ? T.danger : task.priority === 'medium' ? T.warning : T.accent,
+                          background: task.priority === 'high' ? T.dangerBorder : task.priority === 'medium' ? T.warningSoft : T.accentSoft,
+                        }}>
+                          {task.priority === 'high' ? 'H' : task.priority === 'medium' ? 'M' : 'L'}
+                        </span>
+                      )}
+                      {task.points != null && (
+                        <span style={{ fontSize: 9, fontWeight: 600, color: T.purple, opacity: 0.8 }}>{task.points}pt</span>
+                      )}
+                    </div>
                     {task.story_id && storyById[task.story_id] && (
                       <div style={{ fontSize: 10, opacity: 0.7, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {storyById[task.story_id].title}

@@ -247,6 +247,24 @@ function TaskRow({ task, catById, storyById, taskCatMap, onToggle, onSelect, sel
         )}
       </div>
 
+      {/* Priority badge */}
+      {task.priority && (
+        <span style={{
+          fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, flexShrink: 0, textTransform: 'uppercase',
+          color: task.priority === 'high' ? T.danger : task.priority === 'medium' ? T.warning : T.accent,
+          background: task.priority === 'high' ? T.dangerBorder : task.priority === 'medium' ? T.warningSoft : T.accentSoft,
+        }}>
+          {task.priority === 'high' ? 'H' : task.priority === 'medium' ? 'M' : 'L'}
+        </span>
+      )}
+
+      {/* Points badge */}
+      {task.points != null && (
+        <span style={{ fontSize: 10, fontWeight: 600, color: T.purple, flexShrink: 0 }}>
+          {task.points}pt
+        </span>
+      )}
+
       {/* Note indicator */}
       {task.note && (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.textFaint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>

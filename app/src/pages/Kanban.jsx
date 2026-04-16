@@ -164,13 +164,27 @@ function TaskCard({ task, catById, taskCatMap, onChangeStatus }) {
       border: `1px solid ${T.borderStrong}`,
       borderRadius: 6,
     }}>
-      {/* Title */}
-      <div style={{
-        fontSize: 13, fontWeight: 500, color: T.text,
-        textDecoration: task.status === 'done' ? 'line-through' : 'none',
-        marginBottom: 6,
-      }}>
-        {task.title}
+      {/* Title + priority/points */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+        <div style={{
+          flex: 1, fontSize: 13, fontWeight: 500, color: T.text,
+          textDecoration: task.status === 'done' ? 'line-through' : 'none',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {task.title}
+        </div>
+        {task.priority && (
+          <span style={{
+            fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, flexShrink: 0, textTransform: 'uppercase',
+            color: task.priority === 'high' ? T.danger : task.priority === 'medium' ? T.warning : T.accent,
+            background: task.priority === 'high' ? T.dangerBorder : task.priority === 'medium' ? T.warningSoft : T.accentSoft,
+          }}>
+            {task.priority === 'high' ? 'H' : task.priority === 'medium' ? 'M' : 'L'}
+          </span>
+        )}
+        {task.points != null && (
+          <span style={{ fontSize: 10, fontWeight: 600, color: T.purple, flexShrink: 0 }}>{task.points}pt</span>
+        )}
       </div>
 
       {/* Meta row */}

@@ -34,6 +34,8 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
   const [selectedCats, setSelectedCats] = useState([])
   const [selectedStoryId, setSelectedStoryId] = useState(null)
   const [status, setStatus] = useState('todo')
+  const [priority, setPriority] = useState(null)
+  const [points, setPoints] = useState('')
   const [note, setNote] = useState('')
 
   useEffect(() => {
@@ -41,6 +43,8 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
       setActiveTab('task')
       setEditingId(null)
       setStatus('todo')
+      setPriority(null)
+      setPoints('')
       setNote('')
       setDate(slot.date)
       setStartTime(slot.time)
@@ -62,6 +66,8 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
       setSelectedCats(editTask.category_ids || [])
       setSelectedStoryId(editTask.story_id || null)
       setStatus(editTask.status || 'todo')
+      setPriority(editTask.priority || null)
+      setPoints(editTask.points != null ? String(editTask.points) : '')
       setNote(editTask.note || '')
     }
   }, [editTask])
@@ -75,6 +81,8 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
         setEditingId(null)
         setTitle('')
         setNote('')
+        setPriority(null)
+        setPoints('')
         setDate(new Date().toISOString().split('T')[0])
         setStartTime('09:00')
         setEndTime('09:30')
@@ -130,7 +138,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
     if (editingId) {
       const { data: task } = await supabase
         .from('tasks')
-        .update({ title: title.trim(), date, start_time: startTime, end_time: endTime, note, story_id: selectedStoryId })
+        .update({ title: title.trim(), date, start_time: startTime, end_time: endTime, note, story_id: selectedStoryId, priority: priority || null, points: points ? parseInt(points) : null })
         .eq('id', editingId)
         .select()
         .single()
@@ -146,7 +154,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
       const { data: { user } } = await supabase.auth.getUser()
       const { data: task } = await supabase
         .from('tasks')
-        .insert({ title: title.trim(), date, start_time: startTime, end_time: endTime, status: 'todo', note, story_id: selectedStoryId, user_id: user.id })
+        .insert({ title: title.trim(), date, start_time: startTime, end_time: endTime, status: 'todo', note, story_id: selectedStoryId, priority: priority || null, points: points ? parseInt(points) : null, user_id: user.id })
         .select()
         .single()
 
@@ -158,6 +166,8 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
         onTaskChanged()
         setTitle('')
         setNote('')
+        setPriority(null)
+        setPoints('')
         setSelectedCats([])
         setSelectedStoryId(null)
       }
@@ -262,6 +272,10 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
               stories={stories}
               selectedStoryId={selectedStoryId}
               setSelectedStoryId={setSelectedStoryId}
+              priority={priority}
+              setPriority={setPriority}
+              points={points}
+              setPoints={setPoints}
               onSave={handleSaveTask}
               onDelete={handleDeleteTask}
               onSetStatus={handleSetStatus}
@@ -353,7 +367,7 @@ function CategoriesTab({ categories, catName, setCatName, catColor, setCatColor,
   )
 }
 
-function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setDate, startTime, setStartTime, endTime, setEndTime, categories, selectedCats, toggleCat, stories, selectedStoryId, setSelectedStoryId, onSave, onDelete, onSetStatus }) {
+function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setDate, startTime, setStartTime, endTime, setEndTime, categories, selectedCats, toggleCat, stories, selectedStoryId, setSelectedStoryId, priority, setPriority, points, setPoints, onSave, onDelete, onSetStatus }) {
   return (
     <form onSubmit={onSave}>
       {isEditing && (
@@ -396,6 +410,49 @@ function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setD
       <div style={{ marginBottom: 10 }}>
         <Label>Note</Label>
         <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Add a note..." rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+        <div style={{ flex: 1 }}>
+          <Label>Priority</Label>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[
+              { value: 'low', label: 'Low', color: T.accent },
+              { value: 'medium', label: 'Med', color: T.warning },
+              { value: 'high', label: 'High', color: T.danger },
+            ].map(opt => {
+              const active = priority === opt.value
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setPriority(active ? null : opt.value)}
+                  style={{
+                    flex: 1, padding: '6px 4px',
+                    border: `1px solid ${active ? opt.color : T.borderStrong}`,
+                    borderRadius: 5,
+                    background: active ? `${opt.color}18` : T.elevated,
+                    cursor: 'pointer', fontSize: 10, fontWeight: 600,
+                    color: active ? opt.color : T.textDim,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ width: 70 }}>
+          <Label>Points</Label>
+          <input
+            type="number"
+            min="0"
+            value={points}
+            onChange={e => setPoints(e.target.value)}
+            placeholder="—"
+            style={{ ...inputStyle, textAlign: 'center' }}
+          />
+        </div>
       </div>
 
       <div style={{ marginBottom: 10 }}>
