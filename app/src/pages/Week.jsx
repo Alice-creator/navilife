@@ -3,43 +3,39 @@ import supabase from '../lib/supabase'
 import WeekGrid from '../components/WeekGrid'
 import Drawer from '../components/Drawer'
 import { T } from '../theme'
+import { localDateStr, mondayStr, addDaysStr, parseDateStr } from '../lib/date'
 
-function getMondayOfWeek(date) {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function getWeekDays(monday) {
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday)
-    d.setDate(d.getDate() + i)
-    return d
-  })
+// Build 7 consecutive dates starting at `startStr` (YYYY-MM-DD).
+// Returned as UTC-midnight Date objects so downstream `toISOString()` calls
+// yield the correct calendar date regardless of the browser's timezone.
+function getWeekDays(startStr) {
+  return Array.from({ length: 7 }, (_, i) => parseDateStr(addDaysStr(startStr, i)))
 }
 
 function formatRange(days) {
-  const start = days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  const end = days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const start = days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const end = days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
   return `${start} – ${end}`
 }
 
-export default function Week({ categories, onCategoriesChange, stories, onStoriesChange }) {
-  const [weekStart, setWeekStart] = useState(getMondayOfWeek(new Date()))
+export default function Week({ categories, onCategoriesChange, stories, onStoriesChange, timezone = 'UTC' }) {
+  const [weekStartStr, setWeekStartStr] = useState(() => mondayStr(localDateStr(timezone)))
   const [tasks, setTasks] = useState([])
   const [taskCatMap, setTaskCatMap] = useState({})
   const [taskVersion, setTaskVersion] = useState(0)
   const [drawerSlot, setDrawerSlot] = useState(null)
   const [editTask, setEditTask] = useState(null)
 
-  const days = getWeekDays(weekStart)
+  // Re-anchor to the current week when the user's timezone changes
+  useEffect(() => {
+    setWeekStartStr(mondayStr(localDateStr(timezone)))
+  }, [timezone])
+
+  const days = getWeekDays(weekStartStr)
 
   useEffect(() => {
     fetchTasks()
-  }, [weekStart, taskVersion])
+  }, [weekStartStr, taskVersion])
 
   function handleSlotClick(date, time) {
     setEditTask(null)
@@ -67,8 +63,8 @@ export default function Week({ categories, onCategoriesChange, stories, onStorie
   }
 
   async function fetchTasks() {
-    const from = days[0].toISOString().split('T')[0]
-    const to = days[6].toISOString().split('T')[0]
+    const from = weekStartStr
+    const to = addDaysStr(weekStartStr, 6)
     const { data } = await supabase.from('tasks').select('*').gte('date', from).lte('date', to)
     if (data) {
       setTasks(data)
@@ -91,15 +87,11 @@ export default function Week({ categories, onCategoriesChange, stories, onStorie
   }
 
   function prevWeek() {
-    const d = new Date(weekStart)
-    d.setDate(d.getDate() - 7)
-    setWeekStart(d)
+    setWeekStartStr(addDaysStr(weekStartStr, -7))
   }
 
   function nextWeek() {
-    const d = new Date(weekStart)
-    d.setDate(d.getDate() + 7)
-    setWeekStart(d)
+    setWeekStartStr(addDaysStr(weekStartStr, 7))
   }
 
   return (
@@ -112,6 +104,7 @@ export default function Week({ categories, onCategoriesChange, stories, onStorie
         stories={stories}
         onStoriesChange={onStoriesChange}
         onTaskChanged={handleTaskChanged}
+        timezone={timezone}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -120,7 +113,7 @@ export default function Week({ categories, onCategoriesChange, stories, onStorie
           <button onClick={prevWeek} style={navBtn}>←</button>
           <button onClick={nextWeek} style={navBtn}>→</button>
           <span style={{ fontWeight: 600, fontSize: 15, color: T.text }}>{formatRange(days)}</span>
-          <button onClick={() => setWeekStart(getMondayOfWeek(new Date()))} style={{ ...navBtn, marginLeft: 4, fontSize: 13 }}>Today</button>
+          <button onClick={() => setWeekStartStr(mondayStr(localDateStr(timezone)))} style={{ ...navBtn, marginLeft: 4, fontSize: 13 }}>Today</button>
         </div>
 
         {/* Grid */}
@@ -131,6 +124,7 @@ export default function Week({ categories, onCategoriesChange, stories, onStorie
             categories={categories}
             taskCatMap={taskCatMap}
             stories={stories}
+            timezone={timezone}
             onSlotClick={handleSlotClick}
             onTaskClick={(task) => handleTaskClick(task, taskCatMap[task.id] || [])}
             onTaskMove={handleTaskMove}

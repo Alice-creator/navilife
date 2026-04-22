@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { T } from '../theme'
+import { localDateStr } from '../lib/date'
 
 const HOUR_START = 0
 const HOUR_END = 24
@@ -35,7 +36,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
-export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}, stories = [], onSlotClick, onTaskClick, onTaskMove }) {
+export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}, stories = [], timezone = 'UTC', onSlotClick, onTaskClick, onTaskMove }) {
   const gridRef = useRef(null)
   const dragRef = useRef(null)
   const resizeRef = useRef(null)
@@ -287,16 +288,16 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
 
       {/* Day columns */}
       {days.map((date, i) => {
-        const isToday = date.toDateString() === new Date().toDateString()
-        const dayTasks = getTasksForDay(date)
         const dateStr = date.toISOString().split('T')[0]
+        const isToday = dateStr === localDateStr(timezone)
+        const dayTasks = getTasksForDay(date)
 
         return (
           <div key={i} style={{ flex: 1, minWidth: 0, borderLeft: `1px solid ${T.border}` }}>
             {/* Day header */}
             <div style={{ height: 40, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderBottom: `1px solid ${T.border}`, background: isToday ? T.surface : T.bg, position: 'sticky', top: 0, zIndex: 1 }}>
               <span style={{ fontSize: 12, color: T.textSub, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{DAYS[i]}</span>
-              <span style={{ fontSize: 15, fontWeight: isToday ? 700 : 400, color: isToday ? T.text : T.textSub }}>{date.getDate()}</span>
+              <span style={{ fontSize: 15, fontWeight: isToday ? 700 : 400, color: isToday ? T.text : T.textSub }}>{date.getUTCDate()}</span>
             </div>
 
             {/* Clickable time slots */}

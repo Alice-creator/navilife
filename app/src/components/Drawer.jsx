@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import supabase from '../lib/supabase'
 import { T, PRESET_COLORS } from '../theme'
+import { localDateStr } from '../lib/date'
 const PANEL_WIDTH = 280
 const BAR_WIDTH = 44
 
@@ -16,7 +17,7 @@ function stripSeconds(t) {
   return t.split(':').slice(0, 2).join(':')
 }
 
-export default function Drawer({ slot, editTask, categories, onCategoriesChange, stories, onStoriesChange, onTaskChanged }) {
+export default function Drawer({ slot, editTask, categories, onCategoriesChange, stories, onStoriesChange, onTaskChanged, timezone = 'UTC' }) {
   const [activeTab, setActiveTab] = useState(null)
 
   const [catName, setCatName] = useState('')
@@ -28,7 +29,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
 
   const [editingId, setEditingId] = useState(null)
   const [title, setTitle] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(localDateStr(timezone))
   const [startTime, setStartTime] = useState('09:00')
   const [endTime, setEndTime] = useState('09:30')
   const [selectedCats, setSelectedCats] = useState([])
@@ -98,7 +99,7 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
         setReminderDate('')
         setReminderTime('')
         setExistingReminders([])
-        setDate(new Date().toISOString().split('T')[0])
+        setDate(localDateStr(timezone))
         setStartTime('09:00')
         setEndTime('09:30')
         setSelectedCats([])
@@ -210,15 +211,25 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
 
   async function handleAddReminder() {
     if (!reminderDate || !reminderTime) return
-    const taskId = editingId
+    if (!editingId) {
+      alert('Save the task first, then add a reminder.')
+      return
+    }
     const remindAt = new Date(`${reminderDate}T${reminderTime}`).toISOString()
     const { data: { user } } = await supabase.auth.getUser()
-    const { data } = await supabase.from('reminders').insert({ task_id: taskId, remind_at: remindAt, user_id: user.id }).select().single()
-    if (data) {
-      setExistingReminders(prev => [...prev, data])
-      setReminderDate('')
-      setReminderTime('')
+    const { data, error } = await supabase
+      .from('reminders')
+      .insert({ task_id: editingId, remind_at: remindAt, user_id: user.id })
+      .select()
+      .single()
+    if (error) {
+      console.error('Reminder insert failed:', error)
+      alert(`Could not add reminder: ${error.message}`)
+      return
     }
+    setExistingReminders(prev => [...prev, data])
+    setReminderDate('')
+    setReminderTime('')
   }
 
   async function handleDeleteReminder(id) {

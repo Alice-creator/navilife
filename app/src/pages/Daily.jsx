@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import supabase from '../lib/supabase'
 import { T } from '../theme'
 import { nextStatus } from '../lib/taskStatus'
+import { localDateStr, parseDateStr } from '../lib/date'
 
 function formatTime(timeStr) {
   if (!timeStr) return ''
@@ -11,7 +12,7 @@ function formatTime(timeStr) {
   return `${hour12}:${m.toString().padStart(2, '0')} ${suffix}`
 }
 
-export default function Daily({ categories, stories }) {
+export default function Daily({ categories, stories, timezone = 'UTC' }) {
   const [tasks, setTasks] = useState([])
   const [taskCatMap, setTaskCatMap] = useState({})
   const [loading, setLoading] = useState(true)
@@ -19,7 +20,7 @@ export default function Daily({ categories, stories }) {
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = localDateStr(timezone)
 
   useEffect(() => {
     async function load() {
@@ -46,7 +47,7 @@ export default function Daily({ categories, stories }) {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [today])
 
   const catById = {}
   categories.forEach(c => { catById[c.id] = c })
@@ -118,7 +119,7 @@ export default function Daily({ categories, stories }) {
         <div style={{ padding: '16px 24px', borderBottom: `1px solid ${T.border}` }}>
           <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: T.text }}>Daily Tasks</h1>
           <div style={{ fontSize: 13, color: T.textSub, marginTop: 2 }}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            {parseDateStr(today).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
           </div>
         </div>
 

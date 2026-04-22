@@ -5,6 +5,7 @@ import {
 } from 'recharts'
 import supabase from '../lib/supabase'
 import { T } from '../theme'
+import { localDateStr, parseDateStr } from '../lib/date'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const UNIT_DEFAULTS = { week: 8, month: 6, year: 3 }
@@ -30,71 +31,75 @@ function dur(t) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// All helpers below operate on Date objects at UTC midnight, built from the
+// user's timezone-local calendar date. This lets `toISOString().split('T')[0]`
+// emit the correct YYYY-MM-DD without introducing a timezone-shift bug.
+
 function getMondayOfWeek(date) {
-  const d = new Date(date)
-  const day = d.getDay()
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1)
-  d.setDate(diff)
-  d.setHours(0, 0, 0, 0)
+  const d = new Date(date.getTime())
+  const day = d.getUTCDay()
+  const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1)
+  d.setUTCDate(diff)
+  d.setUTCHours(0, 0, 0, 0)
   return d
 }
 
 function isoDate(d) { return d.toISOString().split('T')[0] }
 
-function getLastNMondays(n) {
+function getLastNMondays(n, today) {
   const mondays = []
-  let d = getMondayOfWeek(new Date())
+  const d = getMondayOfWeek(today)
   for (let i = 0; i < n; i++) {
-    mondays.unshift(new Date(d))
-    d.setDate(d.getDate() - 7)
+    mondays.unshift(new Date(d.getTime()))
+    d.setUTCDate(d.getUTCDate() - 7)
   }
   return mondays
 }
 
-// Filter tasks to the last N units
-function filterLastN(tasks, n, unit) {
-  const now = new Date()
+// Filter tasks to the last N units, anchored on `today` (UTC midnight).
+function filterLastN(tasks, n, unit, today) {
   let start
   if (unit === 'week') {
-    start = new Date(getMondayOfWeek(now))
-    start.setDate(start.getDate() - (n - 1) * 7)
+    start = getMondayOfWeek(today)
+    start.setUTCDate(start.getUTCDate() - (n - 1) * 7)
   } else if (unit === 'month') {
-    start = new Date(now.getFullYear(), now.getMonth() - (n - 1), 1)
+    start = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - (n - 1), 1))
   } else {
-    start = new Date(now.getFullYear() - (n - 1), 0, 1)
+    start = new Date(Date.UTC(today.getUTCFullYear() - (n - 1), 0, 1))
   }
   return tasks.filter(t => t.date >= isoDate(start))
 }
 
-// Build time-bucketed groups for trend/timeline charts
-function buildTimeBuckets(n, unit) {
-  const now = new Date()
+// Build time-bucketed groups for trend/timeline charts, anchored on `today`.
+function buildTimeBuckets(n, unit, today) {
   if (unit === 'week') {
-    return getLastNMondays(n).map(monday => {
+    return getLastNMondays(n, today).map(monday => {
       const weekDates = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(monday); d.setDate(d.getDate() + i); return isoDate(d)
+        const d = new Date(monday.getTime())
+        d.setUTCDate(d.getUTCDate() + i)
+        return isoDate(d)
       })
       return {
-        label: monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        label: monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
         match: t => weekDates.includes(t.date),
       }
     })
   }
   if (unit === 'month') {
     return Array.from({ length: n }, (_, i) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i), 1)
-      const next = new Date(now.getFullYear(), now.getMonth() - (n - 1 - i) + 1, 1)
+      const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - (n - 1 - i), 1))
+      const next = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - (n - 1 - i) + 1, 1))
       return {
-        label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-        match: t => { const td = new Date(t.date + 'T00:00:00'); return td >= d && td < next },
+        label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit', timeZone: 'UTC' }),
+        match: t => { const td = parseDateStr(t.date); return td >= d && td < next },
       }
     })
   }
   return Array.from({ length: n }, (_, i) => {
-    const year = now.getFullYear() - (n - 1 - i)
+    const year = today.getUTCFullYear() - (n - 1 - i)
     return {
       label: String(year),
-      match: t => new Date(t.date + 'T00:00:00').getFullYear() === year,
+      match: t => parseDateStr(t.date).getUTCFullYear() === year,
     }
   })
 }
@@ -106,7 +111,7 @@ function toStreakWeeks(n, unit) {
   return Math.min(n * 52, 26)
 }
 
-function buildStreakData(tasks, numWeeks) {
+function buildStreakData(tasks, numWeeks, today) {
   const dateMap = {}
   tasks.forEach(t => {
     if (!dateMap[t.date]) dateMap[t.date] = { done: 0, total: 0 }
@@ -114,15 +119,16 @@ function buildStreakData(tasks, numWeeks) {
     if (t.status === 'done') dateMap[t.date].done++
   })
   const rows = []
-  const monday = getMondayOfWeek(new Date())
+  const monday = getMondayOfWeek(today)
+  const todayStr = isoDate(today)
   for (let week = numWeeks - 1; week >= 0; week--) {
     const weekDates = []
     for (let dow = 0; dow < 7; dow++) {
-      const d = new Date(monday)
-      d.setDate(d.getDate() - week * 7 + dow)
+      const d = new Date(monday.getTime())
+      d.setUTCDate(d.getUTCDate() - week * 7 + dow)
       const dateStr = isoDate(d)
       const { done = 0, total = 0 } = dateMap[dateStr] || {}
-      weekDates.push({ date: dateStr, done, total, future: d > new Date() })
+      weekDates.push({ date: dateStr, done, total, future: dateStr > todayStr })
     }
     rows.push(weekDates)
   }
@@ -155,7 +161,11 @@ function Empty() {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-export default function Dashboard() {
+export default function Dashboard({ timezone = 'UTC' }) {
+  // UTC-midnight Date representing "today" in the user's timezone. All chart
+  // helpers below read via getUTC* methods so browser TZ is never consulted.
+  const today = parseDateStr(localDateStr(timezone))
+
   const [tasks, setTasks] = useState([])
   const [pendingTasks, setPendingTasks] = useState([])
   const [categories, setCategories] = useState([])
@@ -239,14 +249,14 @@ export default function Dashboard() {
   }, [])
 
   const thisWeekData = useMemo(() => {
-    const monday = getMondayOfWeek(new Date())
+    const monday = getMondayOfWeek(today)
     return DAYS.map((day, i) => {
-      const d = new Date(monday); d.setDate(d.getDate() + i)
+      const d = new Date(monday.getTime()); d.setUTCDate(d.getUTCDate() + i)
       const dayTasks = tasks.filter(t => t.date === isoDate(d))
       const done = dayTasks.filter(t => t.status === 'done').length
       return { day, done, total: dayTasks.length }
     })
-  }, [tasks])
+  }, [tasks, today.getTime()])
 
   const totalTasks = tasks.length
   const doneTasks = tasks.filter(t => t.status === 'done').length
@@ -342,27 +352,27 @@ export default function Dashboard() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           <Card title="Completion by day of week">
-            <CompletionByDayChart tasks={tasks} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
+            <CompletionByDayChart tasks={tasks} n={n} unit={unit} today={today} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
           </Card>
           <Card title="Completion trend">
-            <TrendChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
+            <TrendChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} today={today} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
           </Card>
         </div>
 
         <Card title="Scheduled hours by day of week">
-          <TimeDistChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
+          <TimeDistChart tasks={tasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} today={today} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
         </Card>
 
         <Card title="Activity streak">
-          <StreakCalendar tasks={tasks} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
+          <StreakCalendar tasks={tasks} n={n} unit={unit} today={today} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
         </Card>
 
         <Card title="Task completion over time">
-          <CompletionTimelineChart tasks={tasks} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
+          <CompletionTimelineChart tasks={tasks} n={n} unit={unit} today={today} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
         </Card>
 
         <Card title="Pending task aging">
-          <TaskAgingChart pendingTasks={pendingTasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
+          <TaskAgingChart pendingTasks={pendingTasks} categories={filteredCategories} taskCatMap={taskCatMap} n={n} unit={unit} today={today} onShowTasks={setDrillTasks} onShowLabel={setDrillLabel} />
         </Card>
 
       </div>
@@ -442,19 +452,19 @@ function TaskDrillPanel({ label, tasks, onClose }) {
 
 // ─── Chart components ─────────────────────────────────────────────────────────
 
-function CompletionByDayChart({ tasks, n, unit, onShowTasks, onShowLabel }) {
+function CompletionByDayChart({ tasks, n, unit, today, onShowTasks, onShowLabel }) {
   const data = useMemo(() => {
-    const filtered = filterLastN(tasks, n, unit)
+    const filtered = filterLastN(tasks, n, unit, today)
     return DAYS.map((day, i) => {
       const dayTasks = filtered.filter(t => {
-        const dow = new Date(t.date + 'T00:00:00').getDay()
+        const dow = parseDateStr(t.date).getUTCDay()
         return (dow === 0 ? 6 : dow - 1) === i
       })
       const done = dayTasks.filter(t => t.status === 'done').length
       const total = dayTasks.length
       return { day, done, total, rate: total > 0 ? Math.round((done / total) * 100) : 0, _tasks: dayTasks }
     })
-  }, [tasks, n, unit])
+  }, [tasks, n, unit, today.getTime()])
   if (data.every(d => d.total === 0)) return <Empty />
   function handleClick(entry) {
     if (entry?._tasks?.length) { onShowLabel(entry.day); onShowTasks(entry._tasks) }
@@ -475,9 +485,9 @@ function CompletionByDayChart({ tasks, n, unit, onShowTasks, onShowLabel }) {
   )
 }
 
-function TrendChart({ tasks, categories, taskCatMap, n, unit, onShowTasks, onShowLabel }) {
+function TrendChart({ tasks, categories, taskCatMap, n, unit, today, onShowTasks, onShowLabel }) {
   const { data, catKeys } = useMemo(() => {
-    const buckets = buildTimeBuckets(n, unit)
+    const buckets = buildTimeBuckets(n, unit, today)
     const cats = catsOrFallback(categories)
     const rows = buckets.map(({ label, match }) => {
       const wt = tasks.filter(t => match(t))
@@ -496,7 +506,7 @@ function TrendChart({ tasks, categories, taskCatMap, n, unit, onShowTasks, onSho
       return row
     })
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
-  }, [tasks, categories, taskCatMap, n, unit])
+  }, [tasks, categories, taskCatMap, n, unit, today.getTime()])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
   function handleClick(state) {
     const payload = state?.activePayload?.[0]?.payload
@@ -518,13 +528,13 @@ function TrendChart({ tasks, categories, taskCatMap, n, unit, onShowTasks, onSho
   )
 }
 
-function TimeDistChart({ tasks, categories, taskCatMap, n, unit, onShowTasks, onShowLabel }) {
+function TimeDistChart({ tasks, categories, taskCatMap, n, unit, today, onShowTasks, onShowLabel }) {
   const { data, catKeys } = useMemo(() => {
-    const filtered = filterLastN(tasks, n, unit).filter(t => t.start_time && t.end_time)
+    const filtered = filterLastN(tasks, n, unit, today).filter(t => t.start_time && t.end_time)
     const cats = catsOrFallback(categories)
     const rows = DAYS.map((day, i) => {
       const dayTasks = filtered.filter(t => {
-        const dow = new Date(t.date + 'T00:00:00').getDay()
+        const dow = parseDateStr(t.date).getUTCDay()
         return (dow === 0 ? 6 : dow - 1) === i
       })
       const row = { day, _tasks: dayTasks }
@@ -535,7 +545,7 @@ function TimeDistChart({ tasks, categories, taskCatMap, n, unit, onShowTasks, on
       return row
     })
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
-  }, [tasks, categories, taskCatMap, n, unit])
+  }, [tasks, categories, taskCatMap, n, unit, today.getTime()])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
   function handleClick(state) {
     const payload = state?.activePayload?.[0]?.payload
@@ -556,9 +566,9 @@ function TimeDistChart({ tasks, categories, taskCatMap, n, unit, onShowTasks, on
   )
 }
 
-function StreakCalendar({ tasks, n, unit, onShowTasks, onShowLabel }) {
+function StreakCalendar({ tasks, n, unit, today, onShowTasks, onShowLabel }) {
   const numWeeks = toStreakWeeks(n, unit)
-  const data = useMemo(() => buildStreakData(tasks, numWeeks), [tasks, numWeeks])
+  const data = useMemo(() => buildStreakData(tasks, numWeeks, today), [tasks, numWeeks, today.getTime()])
   const cellH = numWeeks > 12 ? 14 : 20
   function handleCellClick(dateStr) {
     const dateTasks = tasks.filter(t => t.date === dateStr)
@@ -600,13 +610,13 @@ function StreakCalendar({ tasks, n, unit, onShowTasks, onShowLabel }) {
   )
 }
 
-function CompletionTimelineChart({ tasks, n, unit, onShowTasks, onShowLabel }) {
+function CompletionTimelineChart({ tasks, n, unit, today, onShowTasks, onShowLabel }) {
   const data = useMemo(() => {
-    return buildTimeBuckets(n, unit).map(({ label, match }) => {
+    return buildTimeBuckets(n, unit, today).map(({ label, match }) => {
       const wt = tasks.filter(t => match(t))
       return { label, total: wt.length, done: wt.filter(t => t.status === 'done').length, _tasks: wt }
     })
-  }, [tasks, n, unit])
+  }, [tasks, n, unit, today.getTime()])
   if (!data.some(d => d.total > 0)) return <Empty />
   function handleClick(state) {
     const payload = state?.activePayload?.[0]?.payload
@@ -635,14 +645,13 @@ const AGING_BUCKETS = [
   { label: '2+ weeks', min: 15, max: Infinity },
 ]
 
-function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit, onShowTasks, onShowLabel }) {
+function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit, today, onShowTasks, onShowLabel }) {
   const { data, catKeys } = useMemo(() => {
-    const filtered = filterLastN(pendingTasks, n, unit).filter(t => t.status !== 'done' && t.date)
-    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const filtered = filterLastN(pendingTasks, n, unit, today).filter(t => t.status !== 'done' && t.date)
     const cats = catsOrFallback(categories)
     const rows = AGING_BUCKETS.map(({ label, min, max }) => {
       const bucketTasks = filtered.filter(t => {
-        const diff = Math.floor((today - new Date(t.date + 'T00:00:00')) / 86400000)
+        const diff = Math.floor((today.getTime() - parseDateStr(t.date).getTime()) / 86400000)
         return diff >= 0 && diff >= min && diff <= max
       })
       const row = { label, _tasks: bucketTasks }
@@ -653,7 +662,7 @@ function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit, onShowT
       return row
     })
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
-  }, [pendingTasks, categories, taskCatMap, n, unit])
+  }, [pendingTasks, categories, taskCatMap, n, unit, today.getTime()])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
   function handleClick(state) {
     const payload = state?.activePayload?.[0]?.payload

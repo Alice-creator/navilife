@@ -71,6 +71,9 @@ export default function Nav({ user }) {
             </div>
 
             <div style={{ borderTop: `1px solid ${T.border}`, padding: '4px 0' }}>
+              <MenuItem onClick={() => setMenuOpen(false)}>
+                <NavLink to="/settings" style={{ textDecoration: 'none', color: 'inherit', display: 'block', width: '100%' }}>Settings</NavLink>
+              </MenuItem>
               <MenuItem onClick={() => supabase.auth.signOut()} danger>Log out</MenuItem>
             </div>
           </div>
