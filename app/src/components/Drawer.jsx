@@ -17,7 +17,7 @@ function stripSeconds(t) {
   return t.split(':').slice(0, 2).join(':')
 }
 
-export default function Drawer({ slot, editTask, categories, onCategoriesChange, stories, onStoriesChange, onTaskChanged, timezone = 'UTC' }) {
+export default function Drawer({ slot, editTask, pendingRange, categories, onCategoriesChange, stories, onStoriesChange, onTaskChanged, onRangeChange, timezone = 'UTC' }) {
   const [activeTab, setActiveTab] = useState(null)
 
   const [catName, setCatName] = useState('')
@@ -41,6 +41,22 @@ export default function Drawer({ slot, editTask, categories, onCategoriesChange,
   const [reminderDate, setReminderDate] = useState('')
   const [reminderTime, setReminderTime] = useState('')
   const [existingReminders, setExistingReminders] = useState([])
+
+  useEffect(() => {
+    if (!onRangeChange) return
+    if (activeTab === 'task' && date && startTime && endTime) {
+      onRangeChange({ date, startTime, endTime })
+    } else {
+      onRangeChange(null)
+    }
+  }, [activeTab, date, startTime, endTime, onRangeChange])
+
+  useEffect(() => {
+    if (!pendingRange) return
+    if (pendingRange.date) setDate(pendingRange.date)
+    if (pendingRange.startTime) setStartTime(pendingRange.startTime)
+    if (pendingRange.endTime) setEndTime(pendingRange.endTime)
+  }, [pendingRange])
 
   useEffect(() => {
     if (slot) {

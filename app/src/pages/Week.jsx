@@ -25,6 +25,8 @@ export default function Week({ categories, onCategoriesChange, stories, onStorie
   const [taskVersion, setTaskVersion] = useState(0)
   const [drawerSlot, setDrawerSlot] = useState(null)
   const [editTask, setEditTask] = useState(null)
+  const [selectionRange, setSelectionRange] = useState(null)
+  const [pendingRange, setPendingRange] = useState(null)
 
   // Re-anchor to the current week when the user's timezone changes
   useEffect(() => {
@@ -99,11 +101,13 @@ export default function Week({ categories, onCategoriesChange, stories, onStorie
       <Drawer
         slot={drawerSlot}
         editTask={editTask}
+        pendingRange={pendingRange}
         categories={categories}
         onCategoriesChange={onCategoriesChange}
         stories={stories}
         onStoriesChange={onStoriesChange}
         onTaskChanged={handleTaskChanged}
+        onRangeChange={setSelectionRange}
         timezone={timezone}
       />
 
@@ -125,6 +129,11 @@ export default function Week({ categories, onCategoriesChange, stories, onStorie
             taskCatMap={taskCatMap}
             stories={stories}
             timezone={timezone}
+            selectionRange={selectionRange}
+            onSelectionRangeEdit={(r) => {
+              setSelectionRange(r)
+              setPendingRange({ ...r, _ts: Date.now() })
+            }}
             onSlotClick={handleSlotClick}
             onTaskClick={(task) => handleTaskClick(task, taskCatMap[task.id] || [])}
             onTaskMove={handleTaskMove}

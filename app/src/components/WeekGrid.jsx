@@ -36,14 +36,18 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
-export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}, stories = [], timezone = 'UTC', onSlotClick, onTaskClick, onTaskMove }) {
+export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}, stories = [], timezone = 'UTC', selectionRange = null, onSelectionRangeEdit, onSlotClick, onTaskClick, onTaskMove }) {
   const gridRef = useRef(null)
   const dragRef = useRef(null)
   const resizeRef = useRef(null)
+  const selResizeRef = useRef(null)
+  const selDragRef = useRef(null)
   const wasDragging = useRef(false)
   const rafRef = useRef(null)
   const [drag, setDrag] = useState(null)
   const [resize, setResize] = useState(null) // { taskId, startTime, endTime }
+  const [selResize, setSelResize] = useState(null) // { startTime, endTime } during selection-edge drag
+  const [selMove, setSelMove] = useState(null)     // { date, startTime, endTime } during selection body drag
 
   const catById = {}
   categories.forEach(c => { catById[c.id] = c })
@@ -271,6 +275,180 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
     document.addEventListener('mouseup', onUp)
   }
 
+  // --- Selection range body drag (move) ---
+
+  function getSelectionMoveDrop(clientX, clientY, grabPxOffset, durationMins) {
+    if (!gridRef.current) return null
+    const cols = gridRef.current.querySelectorAll('[data-day-col]')
+    for (const c of cols) {
+      const rect = c.getBoundingClientRect()
+      if (clientX >= rect.left && clientX <= rect.right) {
+        const adjustedY = clientY - grabPxOffset
+        const relY = adjustedY - rect.top
+        const totalMins = HOUR_START * 60 + (relY / HOUR_HEIGHT) * 60
+        const snapped = Math.round(totalMins / 15) * 15
+        const maxStart = 24 * 60 - durationMins
+        const clamped = Math.max(0, Math.min(snapped, maxStart))
+        return {
+          date: c.dataset.date,
+          startTime: minsToTime(clamped),
+          endTime: minsToTime(clamped + durationMins),
+        }
+      }
+    }
+    return null
+  }
+
+  function handleSelectionMouseDown(e) {
+    if (e.button !== 0 || !selectionRange) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const col = e.currentTarget.closest('[data-day-col]')
+    if (!col) return
+    const colRect = col.getBoundingClientRect()
+    const bandTopPx = getTaskTop(selectionRange.startTime)
+    const grabPxOffset = e.clientY - (colRect.top + bandTopPx)
+
+    const startMins = timeToMinutes(selectionRange.startTime)
+    const endMins = timeToMinutes(selectionRange.endTime)
+
+    selDragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      grabPxOffset,
+      duration: endMins - startMins,
+      origDate: selectionRange.date,
+      origStart: selectionRange.startTime,
+      started: false,
+    }
+
+    function onMove(ev) {
+      const d = selDragRef.current
+      if (!d) return
+
+      if (!d.started) {
+        if (Math.abs(ev.clientX - d.startX) + Math.abs(ev.clientY - d.startY) < 5) return
+        d.started = true
+        document.body.style.cursor = 'grabbing'
+        document.body.style.userSelect = 'none'
+      }
+
+      d.lastX = ev.clientX
+      d.lastY = ev.clientY
+      if (d.raf) return
+      d.raf = requestAnimationFrame(() => {
+        d.raf = null
+        const dd = selDragRef.current
+        if (!dd) return
+
+        const drop = getSelectionMoveDrop(dd.lastX, dd.lastY, dd.grabPxOffset, dd.duration)
+        if (!drop) return
+        setSelMove(drop)
+      })
+    }
+
+    function onUp(ev) {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      if (selDragRef.current?.raf) cancelAnimationFrame(selDragRef.current.raf)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+
+      const d = selDragRef.current
+      selDragRef.current = null
+      setSelMove(null)
+
+      if (!d || !d.started) return
+
+      wasDragging.current = true
+      setTimeout(() => { wasDragging.current = false }, 0)
+
+      if (!onSelectionRangeEdit) return
+
+      const drop = getSelectionMoveDrop(ev.clientX, ev.clientY, d.grabPxOffset, d.duration)
+      if (!drop) return
+      if (drop.date !== d.origDate || drop.startTime !== d.origStart) {
+        onSelectionRangeEdit(drop)
+      }
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  // --- Selection range resize ---
+
+  function handleSelectionResizeMouseDown(e, edge) {
+    if (e.button !== 0 || !selectionRange) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const col = e.target.closest('[data-day-col]')
+    if (!col) return
+
+    selResizeRef.current = {
+      edge,
+      colEl: col,
+      startTime: selectionRange.startTime,
+      endTime: selectionRange.endTime,
+    }
+
+    document.body.style.cursor = edge === 'top' ? 'n-resize' : 's-resize'
+    document.body.style.userSelect = 'none'
+
+    function onMove(ev) {
+      const r = selResizeRef.current
+      if (!r) return
+      r.lastY = ev.clientY
+      if (r.raf) return
+      r.raf = requestAnimationFrame(() => {
+        r.raf = null
+        const rr = selResizeRef.current
+        if (!rr) return
+
+        const rect = rr.colEl.getBoundingClientRect()
+        const relY = rr.lastY - rect.top
+        const totalMins = HOUR_START * 60 + (relY / HOUR_HEIGHT) * 60
+        const snapped = Math.round(totalMins / 15) * 15
+        const clamped = Math.max(0, Math.min(snapped, 24 * 60))
+
+        if (rr.edge === 'bottom') {
+          const startMins = timeToMinutes(rr.startTime)
+          rr.endTime = minsToTime(Math.max(clamped, startMins + 15))
+        } else {
+          const endMins = timeToMinutes(rr.endTime)
+          rr.startTime = minsToTime(Math.min(clamped, endMins - 15))
+        }
+
+        setSelResize({ startTime: rr.startTime, endTime: rr.endTime })
+      })
+    }
+
+    function onUp() {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      if (selResizeRef.current?.raf) cancelAnimationFrame(selResizeRef.current.raf)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+
+      const r = selResizeRef.current
+      selResizeRef.current = null
+      setSelResize(null)
+
+      wasDragging.current = true
+      setTimeout(() => { wasDragging.current = false }, 0)
+
+      if (!r || !onSelectionRangeEdit) return
+      if (r.startTime !== selectionRange.startTime || r.endTime !== selectionRange.endTime) {
+        onSelectionRangeEdit({ date: selectionRange.date, startTime: r.startTime, endTime: r.endTime })
+      }
+    }
+
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
   // --- Render ---
 
   const ghostColors = drag ? getTaskColor(drag.task) : null
@@ -311,6 +489,45 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
               {HOURS.map(h => (
                 <div key={h} style={{ position: 'absolute', top: (h - HOUR_START) * HOUR_HEIGHT, left: 0, right: 0, height: HOUR_HEIGHT, borderTop: `1px solid ${T.border}` }} />
               ))}
+
+              {/* Selection highlight from drawer */}
+              {selectionRange && (() => {
+                const effDate = selMove ? selMove.date : selectionRange.date
+                if (effDate !== dateStr) return null
+                const effStart = selResize ? selResize.startTime : (selMove ? selMove.startTime : selectionRange.startTime)
+                const effEnd = selResize ? selResize.endTime : (selMove ? selMove.endTime : selectionRange.endTime)
+                if (timeToMinutes(effEnd) <= timeToMinutes(effStart)) return null
+                const isMoving = !!selMove
+                return (
+                  <div
+                    onMouseDown={handleSelectionMouseDown}
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      position: 'absolute',
+                      top: getTaskTop(effStart),
+                      height: getTaskHeight(effStart, effEnd),
+                      left: 0,
+                      right: 0,
+                      background: hexToRgba(T.accent, 0.32),
+                      border: `2px dashed ${T.accent}`,
+                      borderLeft: `4px solid ${T.accent}`,
+                      borderRadius: 4,
+                      cursor: isMoving ? 'grabbing' : 'grab',
+                      boxSizing: 'border-box',
+                      userSelect: 'none',
+                    }}
+                  >
+                    <div
+                      onMouseDown={(e) => handleSelectionResizeMouseDown(e, 'top')}
+                      style={{ position: 'absolute', top: -3, left: 0, right: 0, height: 8, cursor: 'n-resize' }}
+                    />
+                    <div
+                      onMouseDown={(e) => handleSelectionResizeMouseDown(e, 'bottom')}
+                      style={{ position: 'absolute', bottom: -3, left: 0, right: 0, height: 8, cursor: 's-resize' }}
+                    />
+                  </div>
+                )
+              })()}
 
               {/* Tasks */}
               {dayTasks.map(task => {
