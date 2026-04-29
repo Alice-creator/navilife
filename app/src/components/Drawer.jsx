@@ -498,7 +498,7 @@ function TaskTab({ isEditing, status, title, setTitle, note, setNote, date, setD
                     flex: 1, padding: '6px 4px',
                     border: `1px solid ${active ? opt.color : T.borderStrong}`,
                     borderRadius: 5,
-                    background: active ? `${opt.color}18` : T.elevated,
+                    background: active ? `color-mix(in srgb, ${opt.color} 10%, transparent)` : T.elevated,
                     cursor: 'pointer', fontSize: 10, fontWeight: 600,
                     color: active ? opt.color : T.textDim,
                   }}

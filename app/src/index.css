@@ -2,19 +2,118 @@
   box-sizing: border-box;
 }
 
+/* ─── Default (dark) theme tokens ──────────────────────────────────────── */
+:root {
+  --bg:            #0B0D13;
+  --surface:       #131620;
+  --elevated:      #1A1E2B;
+  --overlay:       rgba(0, 0, 0, 0.55);
+  --border:        #1E2230;
+  --border-strong: #2A2F40;
+
+  --text:          #E2E4EA;
+  --text-sub:      #7B819A;
+  --text-dim:      #4A4F63;
+  --text-faint:    #2E3244;
+  --text-on-light: #374151;
+  --button-text:   #FFFFFF;
+
+  --accent:        #6B8AFF;
+  --accent-soft:   rgba(107, 138, 255, 0.15);
+  --success:       #34D399;
+  --success-soft:  rgba(52, 211, 153, 0.10);
+  --success-border:rgba(52, 211, 153, 0.25);
+  --streak:        #2EFF46;
+  --warning:       #F59E0B;
+  --warning-soft:  rgba(245, 158, 11, 0.10);
+  --warning-border:rgba(245, 158, 11, 0.25);
+  --purple:        #A78BFA;
+  --danger:        #F87171;
+  --danger-border: #2D1520;
+
+  --task-bg:       #1a2540;
+  --task-border:   #5580cc;
+  --task-text:     #7aaeff;
+
+  --shadow:        0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-heavy:  0 8px 30px rgba(0, 0, 0, 0.6);
+
+  /* Page bg becomes transparent when a background image is in use, so the image shows through. */
+  --page-bg:       var(--bg);
+  /* Overlay tint laid over the bg image to keep text readable. */
+  --bg-overlay:    rgba(11, 13, 19, 0.62);
+
+  color-scheme: dark;
+}
+
+/* ─── Light theme override ─────────────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:            #F6F7FB;
+  --surface:       #FFFFFF;
+  --elevated:      #F1F3F8;
+  --overlay:       rgba(0, 0, 0, 0.45);
+  --border:        #E5E7EE;
+  --border-strong: #D5D8E1;
+
+  --text:          #1F2330;
+  --text-sub:      #5C6477;
+  --text-dim:      #8B91A4;
+  --text-faint:    #C7CAD3;
+  --text-on-light: #374151;
+  --button-text:   #FFFFFF;
+
+  --accent:        #4A6CF7;
+  --accent-soft:   rgba(74, 108, 247, 0.10);
+  --success:       #10B981;
+  --success-soft:  rgba(16, 185, 129, 0.10);
+  --success-border:rgba(16, 185, 129, 0.30);
+  --streak:        #10B981;
+  --warning:       #F59E0B;
+  --warning-soft:  rgba(245, 158, 11, 0.10);
+  --warning-border:rgba(245, 158, 11, 0.30);
+  --purple:        #8B5CF6;
+  --danger:        #EF4444;
+  --danger-border: #FCE7E7;
+
+  --task-bg:       #DCE6FA;
+  --task-border:   #4A6CF7;
+  --task-text:     #1F2330;
+
+  --shadow:        0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-heavy:  0 8px 30px rgba(0, 0, 0, 0.18);
+
+  --bg-overlay:    rgba(246, 247, 251, 0.62);
+
+  color-scheme: light;
+}
+
+/* When a bg image is set, surfaces become translucent so the image shows through. */
+[data-bg="custom"] {
+  --page-bg: transparent;
+  --surface:  rgba(19, 22, 32, 0.62);
+  --elevated: rgba(26, 30, 43, 0.55);
+}
+/* Light + image: more transparent surfaces. Borders carry the contrast. */
+[data-theme="light"][data-bg="custom"] {
+  --bg-overlay:    rgba(216, 222, 235, 0.55);
+  --surface:       rgba(255, 255, 255, 0.22);
+  --elevated:      rgba(241, 243, 248, 0.18);
+  --border:        #B8BFCD;
+  --border-strong: #909AAE;
+}
+
 html, body, #root {
   margin: 0;
   padding: 0;
   height: 100%;
   width: 100%;
   font-family: system-ui, sans-serif;
-  background-color: #0B0D13; /* must match T.bg in theme.js */
-  color: #E2E4EA; /* must match T.text in theme.js */
-  color-scheme: dark;
+  background-color: var(--page-bg);
+  color: var(--text);
 }
 
 input, select, textarea {
-  color-scheme: dark;
+  color-scheme: inherit;
 }
 
 button {
@@ -22,6 +121,31 @@ button {
   cursor: pointer;
 }
 
+/* ─── Background image layers ──────────────────────────────────────────── */
+/* The image URL is set via the --bg-image custom property by JS (App.jsx).
+   data-bg="custom" means "an image is selected"; data-bg="none" means no image. */
+html[data-bg="custom"]::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: var(--bg-image);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  z-index: -2;
+  pointer-events: none;
+}
+
+html[data-bg="custom"]::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* ─── Recharts tweaks ──────────────────────────────────────────────────── */
 .recharts-wrapper :focus,
 .recharts-wrapper :focus-visible,
 .recharts-surface :focus,

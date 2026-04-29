@@ -508,7 +508,7 @@ export default function WeekGrid({ days, tasks, categories = [], taskCatMap = {}
                       height: getTaskHeight(effStart, effEnd),
                       left: 0,
                       right: 0,
-                      background: hexToRgba(T.accent, 0.32),
+                      background: `color-mix(in srgb, ${T.accent} 32%, transparent)`,
                       border: `2px dashed ${T.accent}`,
                       borderLeft: `4px solid ${T.accent}`,
                       borderRadius: 4,
