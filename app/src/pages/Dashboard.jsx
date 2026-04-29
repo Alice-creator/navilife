@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell,
   LineChart, Line, CartesianGrid, Legend,
 } from 'recharts'
 import supabase from '../lib/supabase'
@@ -15,7 +15,6 @@ const UNIT_DEFAULTS = { week: 8, month: 6, year: 3 }
 const tickStyle = { fontSize: 12, fill: T.textSub }
 const axisLine = { stroke: T.border }
 const gridStroke = T.borderStrong
-const tooltipStyle = { background: T.surface, border: `1px solid ${T.borderStrong}`, borderRadius: 6, color: T.text, fontSize: 12 }
 const legendStyle = { fontSize: 12, color: T.textSub }
 
 const FALLBACK_CATEGORY = { id: '__all', name: 'All', color: T.accent }
@@ -474,7 +473,6 @@ function CompletionByDayChart({ tasks, n, unit, today, onShowTasks, onShowLabel 
       <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
         <XAxis dataKey="day" tick={{ ...tickStyle, fontSize: 13 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}%`} contentStyle={tooltipStyle} />
         <Bar dataKey="rate" radius={[4, 4, 0, 0]} onClick={handleClick} style={{ cursor: 'pointer' }}>
           {data.map((entry, i) => (
             <Cell key={i} fill={entry.rate >= 80 ? T.success : entry.rate >= 50 ? T.accent : entry.rate > 0 ? T.warning : T.border} />
@@ -508,20 +506,27 @@ function TrendChart({ tasks, categories, taskCatMap, n, unit, today, onShowTasks
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
   }, [tasks, categories, taskCatMap, n, unit, today.getTime()])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
-  function handleClick(state) {
-    const payload = state?.activePayload?.[0]?.payload
-    if (payload?._tasks?.length) { onShowLabel(payload.label); onShowTasks(payload._tasks) }
+  function handleDotClick(d) {
+    const row = d?.payload
+    if (row?._tasks?.length) { onShowLabel(row.label); onShowTasks(row._tasks) }
   }
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }} onClick={handleClick} style={{ cursor: 'pointer' }}>
+      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} domain={[0, 100]} unit="%" axisLine={false} tickLine={false} />
-        <Tooltip formatter={(v) => `${v}%`} contentStyle={tooltipStyle} />
         <Legend wrapperStyle={legendStyle} />
         {catKeys.map(c => (
-          <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={{ r: 3, fill: c.color }} activeDot={{ r: 5 }} />
+          <Line
+            key={c.name}
+            type="monotone"
+            dataKey={c.name}
+            stroke={c.color}
+            strokeWidth={2}
+            dot={{ r: 3, fill: c.color, style: { cursor: 'pointer' } }}
+            activeDot={{ r: 5, style: { cursor: 'pointer' }, onClick: (_, d) => handleDotClick(d) }}
+          />
         ))}
       </LineChart>
     </ResponsiveContainer>
@@ -547,19 +552,26 @@ function TimeDistChart({ tasks, categories, taskCatMap, n, unit, today, onShowTa
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
   }, [tasks, categories, taskCatMap, n, unit, today.getTime()])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
-  function handleClick(state) {
-    const payload = state?.activePayload?.[0]?.payload
-    if (payload?._tasks?.length) { onShowLabel(payload.day); onShowTasks(payload._tasks) }
+  function handleBarClick(d) {
+    const row = d?.payload
+    if (row?._tasks?.length) { onShowLabel(row.day); onShowTasks(row._tasks) }
   }
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }} onClick={handleClick} style={{ cursor: 'pointer' }}>
+      <BarChart data={data} margin={{ top: 0, right: 0, bottom: 0, left: -20 }}>
         <XAxis dataKey="day" tick={{ ...tickStyle, fontSize: 13 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} unit="h" axisLine={false} tickLine={false} />
-        <Tooltip cursor={{ fill: 'transparent' }} formatter={(v) => `${v}h`} contentStyle={tooltipStyle} />
         <Legend wrapperStyle={legendStyle} />
         {catKeys.map((c, i) => (
-          <Bar key={c.name} dataKey={c.name} stackId="a" fill={c.color} radius={i === catKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+          <Bar
+            key={c.name}
+            dataKey={c.name}
+            stackId="a"
+            fill={c.color}
+            radius={i === catKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+            onClick={handleBarClick}
+            style={{ cursor: 'pointer' }}
+          />
         ))}
       </BarChart>
     </ResponsiveContainer>
@@ -618,20 +630,27 @@ function CompletionTimelineChart({ tasks, n, unit, today, onShowTasks, onShowLab
     })
   }, [tasks, n, unit, today.getTime()])
   if (!data.some(d => d.total > 0)) return <Empty />
-  function handleClick(state) {
-    const payload = state?.activePayload?.[0]?.payload
-    if (payload?._tasks?.length) { onShowLabel(payload.label); onShowTasks(payload._tasks) }
+  function handleDotClick(d) {
+    const row = d?.payload
+    if (row?._tasks?.length) { onShowLabel(row.label); onShowTasks(row._tasks) }
   }
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }} onClick={handleClick} style={{ cursor: 'pointer' }}>
+      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
-        <Tooltip contentStyle={tooltipStyle} />
         <Legend wrapperStyle={legendStyle} />
-        <Line type="monotone" dataKey="total" name="Scheduled" stroke={T.accent} strokeWidth={2} dot={{ r: 3, fill: T.accent }} />
-        <Line type="monotone" dataKey="done" name="Completed" stroke={T.success} strokeWidth={2} dot={{ r: 3, fill: T.success }} />
+        <Line
+          type="monotone" dataKey="total" name="Scheduled" stroke={T.accent} strokeWidth={2}
+          dot={{ r: 3, fill: T.accent, style: { cursor: 'pointer' } }}
+          activeDot={{ r: 5, style: { cursor: 'pointer' }, onClick: (_, d) => handleDotClick(d) }}
+        />
+        <Line
+          type="monotone" dataKey="done" name="Completed" stroke={T.success} strokeWidth={2}
+          dot={{ r: 3, fill: T.success, style: { cursor: 'pointer' } }}
+          activeDot={{ r: 5, style: { cursor: 'pointer' }, onClick: (_, d) => handleDotClick(d) }}
+        />
       </LineChart>
     </ResponsiveContainer>
   )
@@ -664,20 +683,23 @@ function TaskAgingChart({ pendingTasks, categories, taskCatMap, n, unit, today, 
     return { data: rows, catKeys: cats.map(c => ({ name: c.name, color: c.color })) }
   }, [pendingTasks, categories, taskCatMap, n, unit, today.getTime()])
   if (data.every(d => catKeys.every(c => d[c.name] === 0))) return <Empty />
-  function handleClick(state) {
-    const payload = state?.activePayload?.[0]?.payload
-    if (payload?._tasks?.length) { onShowLabel(payload.label); onShowTasks(payload._tasks) }
+  function handleDotClick(d) {
+    const row = d?.payload
+    if (row?._tasks?.length) { onShowLabel(row.label); onShowTasks(row._tasks) }
   }
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }} onClick={handleClick} style={{ cursor: 'pointer' }}>
+      <LineChart data={data} margin={{ top: 0, right: 8, bottom: 0, left: -20 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
         <XAxis dataKey="label" tick={{ ...tickStyle, fontSize: 11 }} axisLine={axisLine} tickLine={false} />
         <YAxis tick={tickStyle} axisLine={false} tickLine={false} allowDecimals={false} />
-        <Tooltip contentStyle={tooltipStyle} />
         <Legend wrapperStyle={legendStyle} />
         {catKeys.map(c => (
-          <Line key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2} dot={{ r: 3, fill: c.color }} />
+          <Line
+            key={c.name} type="monotone" dataKey={c.name} stroke={c.color} strokeWidth={2}
+            dot={{ r: 3, fill: c.color, style: { cursor: 'pointer' } }}
+            activeDot={{ r: 5, style: { cursor: 'pointer' }, onClick: (_, d) => handleDotClick(d) }}
+          />
         ))}
       </LineChart>
     </ResponsiveContainer>
